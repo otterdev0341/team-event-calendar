@@ -4,7 +4,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   stage: "Stage · Live translation",
   exhibitor: "Exhibitor · ออกบูธ",
 };
-export const ROLE_SHORT: Record<Role, string> = { stage: "Live", exhibitor: "Exhibitor" };
+export const ROLE_SHORT: Record<Role, string> = { stage: "Live Translation", exhibitor: "Exhibitor" };
 
 export type EventType = "pay" | "sponsor";
 export const TYPE_LABEL: Record<EventType, string> = { pay: "Pay", sponsor: "Sponsor" };
