@@ -168,8 +168,8 @@ describe("calendar badges", () => {
     ]);
   });
 
-  it("shows SPR for sponsor, short value for pay, nothing for pay without value", () => {
-    expect(valueBadge(ev({ date: "2026-11-01", type: "sponsor" }))).toBe("SPR");
+  it("shows Sponsor for sponsor, short value for pay, nothing for pay without value", () => {
+    expect(valueBadge(ev({ date: "2026-11-01", type: "sponsor" }))).toBe("Sponsor");
     expect(valueBadge(ev({ date: "2026-11-01", type: "pay", value: 50000 }))).toBe("50k");
     expect(valueBadge(ev({ date: "2026-11-01", type: "pay" }))).toBeNull();
   });

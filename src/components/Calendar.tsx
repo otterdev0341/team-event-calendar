@@ -49,8 +49,6 @@ import {
   ymd,
 } from "@/lib/events";
 
-const TH_DAYS = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
-
 /** Left accent colour per status, so the pipeline stage reads at a glance. */
 const STATUS_BAR: Record<Status, string> = {
   talking: "border-l-slate-400",
@@ -89,6 +87,8 @@ function piecesOf(sg: Segment, keys: string[]) {
   return out;
 }
 
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 export function Calendar({
   events,
   readOnly,
@@ -115,7 +115,7 @@ export function Calendar({
     const n = new Date(cur.y, cur.m + d, 1);
     setCur({ y: n.getFullYear(), m: n.getMonth() });
   };
-  const label = new Date(cur.y, cur.m, 1).toLocaleDateString("th-TH", {
+  const label = new Date(cur.y, cur.m, 1).toLocaleDateString("en-GB", {
     month: "long",
     year: "numeric",
   });
@@ -258,7 +258,7 @@ export function Calendar({
                     <h3
                       className={`text-sm font-semibold ${key === today ? "text-primary" : "text-foreground"}`}
                     >
-                      {d.toLocaleDateString("th-TH", {
+                      {d.toLocaleDateString("en-GB", {
                         weekday: "long",
                         day: "numeric",
                         month: "short",
@@ -287,11 +287,12 @@ export function Calendar({
 
           {/* Desktop / tablet: month grid, 7 equal columns so dates always line up */}
           <div className="hidden md:block">
-            <div className="mb-1 grid grid-cols-7 gap-1.5">
-              {TH_DAYS.map((d, i) => (
+            {/* Weekday header stays visible while scrolling down the month */}
+            <div className="sticky top-0 z-20 -mx-1 mb-1.5 grid grid-cols-7 gap-1.5 border-b border-border bg-background/95 px-1 py-2 backdrop-blur">
+              {WEEKDAYS.map((d, i) => (
                 <div
                   key={d}
-                  className={`py-1 text-center text-xs font-medium uppercase tracking-widest ${i >= 5 ? "text-primary/70" : "text-muted-foreground"}`}
+                  className={`text-center text-sm font-semibold ${i >= 5 ? "text-primary/80" : "text-foreground/80"}`}
                 >
                   {d}
                 </div>
@@ -302,6 +303,13 @@ export function Calendar({
                 const days = cells.slice(wi * 7, wi * 7 + 7);
                 const visible = days.map((d) => d.getMonth() === cur.m);
                 const { segs, lanes } = weekSegments(shown, days, visible);
+                // Lanes taken by bars in each column; single-day cards start right below them.
+                const colUsed = days.map((_, c) =>
+                  segs.reduce(
+                    (m, sg) => (sg.start <= c && c <= sg.end ? Math.max(m, sg.lane + 1) : m),
+                    0,
+                  ),
+                );
                 return (
                   <div
                     key={wi}
@@ -329,6 +337,11 @@ export function Calendar({
                           data-weekend={c >= 5}
                           data-busy={singles.length > 0}
                         >
+                          {key === today && singles.length === 0 && colUsed[c] === 0 && (
+                            <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm font-semibold uppercase tracking-widest text-primary/60">
+                              Today
+                            </span>
+                          )}
                           <div className="flex h-6 items-center justify-between">
                             <span className="cal-num">{d.getDate()}</span>
                             {!readOnly && inMonth && (
@@ -373,7 +386,7 @@ export function Calendar({
                         <div
                           key={"s" + c}
                           className="relative min-h-16 space-y-1.5 px-1.5 pb-1.5"
-                          style={{ gridColumn: c + 1, gridRow: lanes + 2 }}
+                          style={{ gridColumn: c + 1, gridRow: `${colUsed[c]! + 2} / -1` }}
                         >
                           {singles.map(({ e }) => (
                             <EventPill
@@ -562,7 +575,7 @@ function SpanBar({
   const innerLeft = piece.start !== sg.start;
   const innerRight = piece.end !== sg.end;
   const short = (d: string) =>
-    new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+    new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const live = e.team.filter((t) => t.role === "stage");
   const booth = e.team.filter((t) => t.role === "exhibitor");
   const tip = [
@@ -751,7 +764,7 @@ function EventTable({
   onOpen: (e: CalEvent) => void;
 }) {
   const shortDate = (d: string) =>
-    new Date(d + "T00:00").toLocaleDateString("th-TH", {
+    new Date(d + "T00:00").toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "2-digit",

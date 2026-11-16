@@ -59,9 +59,9 @@ export function shortAmount(n: number): string {
   return fmt(n);
 }
 
-/** Calendar badge: "SPR" for sponsor, short value for pay, null when pay has no value yet. */
+/** Calendar badge: "Sponsor" for sponsor, short value for pay, null when pay has no value yet. */
 export function valueBadge(e: CalEvent): string | null {
-  if (e.type === "sponsor") return "SPR";
+  if (e.type === "sponsor") return "Sponsor";
   return e.value != null ? shortAmount(e.value) : null;
 }
 
@@ -155,7 +155,7 @@ export const isSetupDay = (e: CalEvent, day: string) => !!e.setupDays?.includes(
 export const setupLabel = (e: CalEvent) =>
   (e.setupDays || [])
     .map((d) =>
-      new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+      new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
     )
     .join(", ");
 
@@ -180,17 +180,17 @@ export function monthSummary(events: CalEvent[], year: number, month: number) {
   };
 }
 
-const thDate = (d: string) =>
-  new Date(d + "T00:00").toLocaleDateString("th-TH", {
+const fmtDate = (d: string) =>
+  new Date(d + "T00:00").toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
     month: "short",
-    year: "2-digit",
+    year: "numeric",
   });
 
-/** Date range label, e.g. "พ. 5 พ.ย. 69" or "พฤ. 12 พ.ย. 69 – ศ. 13 พ.ย. 69". */
+/** Date range label, e.g. "Thu 5 Nov 2026" or "Thu 12 Nov 2026 – Fri 13 Nov 2026". */
 export const dateRange = (e: CalEvent) =>
-  e.endDate && e.endDate > e.date ? `${thDate(e.date)} – ${thDate(e.endDate)}` : thDate(e.date);
+  e.endDate && e.endDate > e.date ? `${fmtDate(e.date)} – ${fmtDate(e.endDate)}` : fmtDate(e.date);
 
 /**
  * Plain-text brief to paste into LINE / chat for the team.

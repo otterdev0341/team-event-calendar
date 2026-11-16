@@ -91,7 +91,7 @@ function Index() {
                         className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${on ? "border-zinc-800 bg-zinc-800 text-white" : "border-input bg-background text-foreground hover:bg-secondary"}`}
                       >
                         {on && <Wrench size={11} />}
-                        {new Date(d + "T00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}
+                        {new Date(d + "T00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                       </button>
                     );
                   })}
