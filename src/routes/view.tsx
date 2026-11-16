@@ -24,10 +24,10 @@ function View() {
     setEvents(h ? decodeEvents(h) : loadEvents());
   }, []);
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10">
-      <header className="mb-10">
+    <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:py-10">
+      <header className="mb-6 sm:mb-10">
         <p className="text-xs uppercase tracking-[0.3em] text-primary">อ่านอย่างเดียว</p>
-        <h1 className="font-display text-5xl text-foreground">ปฏิทิน Event</h1>
+        <h1 className="font-display text-3xl text-foreground sm:text-5xl">ปฏิทิน Event</h1>
       </header>
       <Calendar events={events} readOnly />
     </main>
