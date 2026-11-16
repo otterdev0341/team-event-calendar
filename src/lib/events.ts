@@ -9,16 +9,19 @@ export const TYPE_LABEL: Record<EventType, string> = { pay: "Pay", sponsor: "Spo
 /** Format a baht amount, e.g. 12500 -> "฿12,500". */
 export const baht = (n: number) => `฿${n.toLocaleString("th-TH", { maximumFractionDigits: 2 })}`;
 
-export const STATUSES = ["talking", "pitch", "demo", "deciding", "wait_qt", "wait_bill", "paid"] as const;
+export const STATUSES = ["talking", "pitch", "demo", "deciding", "confirmed", "wait_qt", "qt_sent", "wait_bill", "paid", "cancelled"] as const;
 export type Status = (typeof STATUSES)[number];
 export const STATUS_LABEL: Record<Status, string> = {
   talking: "กำลังคุย",
   pitch: "รอนำเสนอ",
   demo: "Demo",
   deciding: "รอลูกค้าตัดสินใจ",
+  confirmed: "ยืนยันแล้ว",
   wait_qt: "รอ QT",
+  qt_sent: "QT แล้ว",
   wait_bill: "รอวางบิล",
   paid: "จ่ายแล้ว",
+  cancelled: "ยกเลิก",
 };
 
 /** Customer contact. All fields optional free text. */
@@ -82,18 +85,24 @@ export type CalEvent = {
   bl?: string | undefined;
 };
 
+/** Cancelled events stay on the calendar but are left out of money totals. */
+export const isActive = (e: CalEvent) => e.status !== "cancelled";
+
 /**
  * Summary for one month. An event counts in the month its start date falls in,
- * so a multi-day event that crosses months is counted once.
+ * so a multi-day event that crosses months is counted once. Cancelled events are
+ * counted separately and excluded from the total.
  */
 export function monthSummary(events: CalEvent[], year: number, month: number) {
   const prefix = `${year}-${String(month + 1).padStart(2, "0")}-`;
   const inMonth = events.filter((e) => e.date.startsWith(prefix));
-  const pay = inMonth.filter((e) => e.type === "pay");
+  const active = inMonth.filter(isActive);
+  const pay = active.filter((e) => e.type === "pay");
   return {
     total: pay.reduce((sum, e) => sum + (e.value || 0), 0),
     payCount: pay.length,
-    sponsorCount: inMonth.length - pay.length,
+    sponsorCount: active.length - pay.length,
+    cancelledCount: inMonth.length - active.length,
   };
 }
 

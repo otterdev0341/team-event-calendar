@@ -187,9 +187,12 @@
   .status-pitch { @apply bg-sky-100 text-sky-800; }
   .status-demo { @apply bg-violet-100 text-violet-800; }
   .status-deciding { @apply bg-amber-100 text-amber-800; }
+  .status-confirmed { @apply bg-teal-100 text-teal-800; }
   .status-wait_qt { @apply bg-orange-100 text-orange-800; }
+  .status-qt_sent { @apply bg-indigo-100 text-indigo-800; }
   .status-wait_bill { @apply bg-rose-100 text-rose-800; }
   .status-paid { @apply bg-emerald-600 text-white; }
+  .status-cancelled { @apply bg-zinc-200 text-zinc-600 line-through; }
   .seg { @apply inline-flex rounded-full border border-border bg-card p-0.5; }
   .seg > button { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground; }
   .seg > button[aria-pressed="true"] { @apply bg-primary text-primary-foreground; }

@@ -57,11 +57,12 @@ describe("monthSummary", () => {
       total: 12500.5,
       payCount: 3,
       sponsorCount: 1,
+      cancelledCount: 0,
     });
   });
 
   it("counts a cross-month event only in its start month", () => {
-    expect(monthSummary(events, 2026, 11)).toEqual({ total: 7000, payCount: 1, sponsorCount: 0 });
+    expect(monthSummary(events, 2026, 11)).toEqual({ total: 7000, payCount: 1, sponsorCount: 0, cancelledCount: 0 });
   });
 });
 
@@ -108,6 +109,7 @@ describe("customer, status & search", () => {
     const e = ev({ date: "2026-11-01" });
     expect(e.status).toBe("talking");
     expect(e.customer).toBe("");
+    expect(normalize({ ...e, status: "confirmed" }).status).toBe("confirmed");
   });
 
   it("searches title, customer, contact, team and status label", () => {
@@ -122,5 +124,21 @@ describe("customer, status & search", () => {
     for (const q of ["tech", "เอบีซี", "คุณเอ", "081234", "ABC.CO", "แนน", "รอ QT", ""])
       expect(matchesQuery(e, q)).toBe(true);
     expect(matchesQuery(e, "ไม่มีคำนี้")).toBe(false);
+  });
+});
+
+describe("cancelled & QT sent", () => {
+  it("keeps the new statuses", () => {
+    expect(ev({ date: "2026-11-01", status: "qt_sent" }).status).toBe("qt_sent");
+    expect(ev({ date: "2026-11-01", status: "cancelled" }).status).toBe("cancelled");
+  });
+
+  it("leaves cancelled events out of the monthly total", () => {
+    const events = [
+      ev({ date: "2026-11-03", type: "pay", value: 10000 }),
+      ev({ date: "2026-11-04", type: "pay", value: 5000, status: "cancelled" }),
+      ev({ date: "2026-11-05", type: "sponsor", status: "cancelled" }),
+    ];
+    expect(monthSummary(events, 2026, 10)).toEqual({ total: 10000, payCount: 1, sponsorCount: 0, cancelledCount: 2 });
   });
 });

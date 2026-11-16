@@ -33,6 +33,7 @@ import {
   dateRange,
   eventsByDay,
   hasContact,
+  isActive,
   lineUrl,
   matchesQuery,
   monthSummary,
@@ -49,9 +50,12 @@ const STATUS_BAR: Record<Status, string> = {
   pitch: "border-l-sky-500",
   demo: "border-l-violet-500",
   deciding: "border-l-amber-500",
+  confirmed: "border-l-teal-500",
   wait_qt: "border-l-orange-500",
+  qt_sent: "border-l-indigo-500",
   wait_bill: "border-l-rose-500",
   paid: "border-l-emerald-600",
+  cancelled: "border-l-zinc-300",
 };
 
 export function Calendar({
@@ -194,6 +198,7 @@ export function Calendar({
         <div className="flex gap-2 text-xs">
           <span className="type-chip-pay">Pay {sum.payCount} งาน</span>
           <span className="type-chip-sponsor">Sponsor {sum.sponsorCount} งาน</span>
+          {sum.cancelledCount > 0 && <span className="status-chip status-cancelled">ยกเลิก {sum.cancelledCount} งาน</span>}
         </div>
       </div>
 
@@ -380,10 +385,10 @@ function EventPill({
     <button
       type="button"
       onClick={() => onOpen(e)}
-      className={`block w-full space-y-1.5 rounded-md border border-border/70 border-l-4 bg-card text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${STATUS_BAR[e.status]} ${compact ? "p-2" : "p-3"}`}
+      className={`block w-full space-y-1.5 rounded-md border border-border/70 border-l-4 bg-card text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${STATUS_BAR[e.status]} ${compact ? "p-2" : "p-3"} ${isActive(e) ? "" : "opacity-60"}`}
     >
       <div
-        className={`font-semibold leading-snug text-card-foreground ${compact ? "line-clamp-2 text-[13px]" : ""}`}
+        className={`font-semibold leading-snug text-card-foreground ${compact ? "line-clamp-2 text-[13px]" : ""} ${isActive(e) ? "" : "line-through"}`}
       >
         {e.title || "Event"}
       </div>
@@ -540,7 +545,7 @@ function EventTable({
                     (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onOpen(e))
                   }
                   tabIndex={0}
-                  className="cursor-pointer border-t border-border align-top hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none"
+                  className={`cursor-pointer border-t border-border align-top hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none ${isActive(e) ? "" : "opacity-50"}`}
                 >
                   <td className="whitespace-nowrap px-3 py-2.5">
                     {shortDate(e.date)}
@@ -601,10 +606,10 @@ function EventTable({
             <tfoot className="border-t border-border bg-secondary/40 text-sm font-semibold">
               <tr>
                 <td colSpan={5} className="px-3 py-2">
-                  รวม Pay ({rows.filter((r) => r.type === "pay").length} งาน)
+                  รวม Pay ({rows.filter((r) => r.type === "pay" && isActive(r)).length} งาน · ไม่รวมที่ยกเลิก)
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                  {baht(rows.reduce((s, r) => s + (r.type === "pay" ? r.value || 0 : 0), 0))}
+                  {baht(rows.reduce((s, r) => s + (r.type === "pay" && isActive(r) ? r.value || 0 : 0), 0))}
                 </td>
                 <td colSpan={2} />
               </tr>
