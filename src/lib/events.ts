@@ -2,9 +2,12 @@ export type Role = "stage" | "exhibitor";
 export type TeamMember = { name: string; role: Role };
 export const ROLE_LABEL: Record<Role, string> = {
   stage: "Stage · Live translation",
-  exhibitor: "Exhibitor · ออกบูธ",
+  exhibitor: "Exhibitor · Booth",
 };
-export const ROLE_SHORT: Record<Role, string> = { stage: "Live Translation", exhibitor: "Exhibitor" };
+export const ROLE_SHORT: Record<Role, string> = {
+  stage: "Live Translation",
+  exhibitor: "Exhibitor",
+};
 
 export type EventType = "pay" | "sponsor";
 export const TYPE_LABEL: Record<EventType, string> = { pay: "Pay", sponsor: "Sponsor" };
@@ -26,16 +29,16 @@ export const STATUSES = [
 ] as const;
 export type Status = (typeof STATUSES)[number];
 export const STATUS_LABEL: Record<Status, string> = {
-  talking: "กำลังคุย",
-  pitch: "รอนำเสนอ",
+  talking: "In discussion",
+  pitch: "Awaiting pitch",
   demo: "Demo",
-  deciding: "รอลูกค้าตัดสินใจ",
-  confirmed: "ยืนยันแล้ว",
-  wait_qt: "รอ QT",
-  qt_sent: "QT แล้ว",
-  wait_bill: "รอวางบิล",
-  paid: "จ่ายแล้ว",
-  cancelled: "ยกเลิก",
+  deciding: "Client deciding",
+  confirmed: "Confirmed",
+  wait_qt: "Awaiting QT",
+  qt_sent: "QT sent",
+  wait_bill: "Awaiting billing",
+  paid: "Paid",
+  cancelled: "Cancelled",
 };
 
 /** "-", "–" or blank mean "nobody yet", not a person called "-". */
@@ -151,7 +154,7 @@ export function eventDays(e: Pick<CalEvent, "date" | "endDate">): string[] {
 
 export const isSetupDay = (e: CalEvent, day: string) => !!e.setupDays?.includes(day);
 
-/** "20 พ.ย., 21 พ.ย." for the setup days, or "" when there are none. */
+/** "20 Nov, 21 Nov" for the setup days, or "" when there are none. */
 export const setupLabel = (e: CalEvent) =>
   (e.setupDays || [])
     .map((d) =>
@@ -208,9 +211,9 @@ export function teamMessage(e: CalEvent): string {
   if (e.details) lines.push("", e.details);
   const c = e.contact;
   if (hasContact(c)) {
-    lines.push("", "☎️ ติดต่อลูกค้า");
-    if (c.name) lines.push(`ชื่อ: ${c.name}`);
-    if (c.phone) lines.push(`โทร: ${c.phone}`);
+    lines.push("", "☎️ Client contact");
+    if (c.name) lines.push(`Name: ${c.name}`);
+    if (c.phone) lines.push(`Phone: ${c.phone}`);
     if (c.line) lines.push(`LINE: ${c.line}`);
     if (c.email) lines.push(`Email: ${c.email}`);
   }

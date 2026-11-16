@@ -130,7 +130,7 @@ describe("customer, status & search", () => {
       team: [{ name: "แนน", role: "exhibitor" }],
       contact: { name: "คุณเอ", phone: "0812345678", line: "", email: "a@abc.co" },
     });
-    for (const q of ["tech", "เอบีซี", "คุณเอ", "081234", "ABC.CO", "แนน", "รอ QT", ""])
+    for (const q of ["tech", "เอบีซี", "คุณเอ", "081234", "ABC.CO", "แนน", "awaiting qt", ""])
       expect(matchesQuery(e, q)).toBe(true);
     expect(matchesQuery(e, "ไม่มีคำนี้")).toBe(false);
   });

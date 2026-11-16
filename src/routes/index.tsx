@@ -7,10 +7,10 @@ import { type CalEvent, type Contact, type EventType, type Role, type Status, CO
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ปฏิทิน Event — จัดทีมงานและสถานที่" },
-      { name: "description", content: "ปฏิทิน event ระบุสถานที่ รายละเอียด ทีมงาน และแชร์แบบอ่านอย่างเดียว" },
-      { property: "og:title", content: "ปฏิทิน Event" },
-      { property: "og:description", content: "วางแผน event ทีมงาน และแชร์ปฏิทินแบบอ่านอย่างเดียว" },
+      { title: "Event Calendar — team and venue planning" },
+      { name: "description", content: "Event calendar with venues, details and team, shareable as read-only" },
+      { property: "og:title", content: "Event Calendar" },
+      { property: "og:description", content: "Plan events and team, share a read-only calendar" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -54,12 +54,12 @@ function Index() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-primary">Event Planner</p>
-          <h1 className="font-display text-3xl text-foreground sm:text-5xl">ปฏิทิน Event</h1>
+          <h1 className="font-display text-3xl text-foreground sm:text-5xl">Event Calendar</h1>
         </div>
-        <button onClick={share} className="btn-primary"><Share2 size={16} />{copied ? "คัดลอกลิงก์แล้ว!" : "แชร์แบบอ่านอย่างเดียว"}</button>
+        <button onClick={share} className="btn-primary"><Share2 size={16} />{copied ? "Link copied!" : "Share read-only"}</button>
       </header>
       <Calendar events={events} onAdd={(d) => open(blank(d))} onEdit={open} onDelete={(e) => setEvents((p) => p.filter((x) => x.id !== e.id))} />
-      <p className="mt-6 text-xs text-muted-foreground">ข้อมูลบันทึกไว้ในเบราว์เซอร์นี้ · ลิงก์แชร์เป็นภาพ ณ ตอนที่กดแชร์ (แก้ไขแล้วต้องแชร์ใหม่) · <Link to="/view" className="underline">ดูหน้าอ่านอย่างเดียว</Link></p>
+      <p className="mt-6 text-xs text-muted-foreground">Data is saved in this browser · A share link is a snapshot at the time you share (share again after edits) · <Link to="/view" className="underline">Open read-only view</Link></p>
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 sm:items-center sm:p-4" onClick={() => setEditing(null)}>
@@ -69,11 +69,11 @@ function Index() {
               <button onClick={() => setEditing(null)}><X size={18} /></button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="วันเริ่ม"><input type="date" className="inp" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></Field>
-              <Field label="วันสิ้นสุด (ถ้าหลายวัน)"><input type="date" className="inp" min={editing.date} value={editing.endDate || ""} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} /></Field>
+              <Field label="Start date"><input type="date" className="inp" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></Field>
+              <Field label="End date (multi-day)"><input type="date" className="inp" min={editing.date} value={editing.endDate || ""} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} /></Field>
             </div>
             {editing.endDate && editing.endDate > editing.date && (
-              <Field label="วัน Setup (เตรียมงาน / ติดตั้ง) — กดเลือกวัน">
+              <Field label="Setup days (load-in) — tap to select">
                 <div className="flex flex-wrap gap-1.5">
                   {eventDays(editing).map((d) => {
                     const on = !!editing.setupDays?.includes(d);
@@ -98,16 +98,16 @@ function Index() {
                 </div>
               </Field>
             )}
-            <Field label="ชื่องาน"><input className="inp" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></Field>
+            <Field label="Event name"><input className="inp" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="ลูกค้า / บริษัท"><input className="inp" placeholder="เช่น บริษัท เอบีซี จำกัด" value={editing.customer} onChange={(e) => setEditing({ ...editing, customer: e.target.value })} /></Field>
-              <Field label="สถานะ">
+              <Field label="Client / company"><input className="inp" placeholder="e.g. ABC Co., Ltd." value={editing.customer} onChange={(e) => setEditing({ ...editing, customer: e.target.value })} /></Field>
+              <Field label="Status">
                 <select className="inp" value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as Status })}>
                   {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                 </select>
               </Field>
             </div>
-            <Field label="สีพื้นหลังในปฏิทิน">
+            <Field label="Calendar colour">
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -115,14 +115,14 @@ function Index() {
                   aria-pressed={!editing.color}
                   className={`rounded-full border px-2.5 py-1 text-xs ${!editing.color ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-secondary"}`}
                 >
-                  ตามสถานะ
+                  By status
                 </button>
                 {COLOR_PRESETS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setEditing({ ...editing, color: c })}
-                    aria-label={`สี ${c}`}
+                    aria-label={`Colour ${c}`}
                     aria-pressed={editing.color === c}
                     className="grid h-7 w-7 place-items-center rounded-full ring-offset-2 ring-offset-card aria-pressed:ring-2 aria-pressed:ring-foreground"
                     style={{ backgroundColor: c }}
@@ -133,7 +133,7 @@ function Index() {
                 <label
                   className={`relative grid h-7 w-7 cursor-pointer place-items-center overflow-hidden rounded-full border border-input ${editing.color && !(COLOR_PRESETS as readonly string[]).includes(editing.color) ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`}
                   style={{ background: editing.color && !(COLOR_PRESETS as readonly string[]).includes(editing.color) ? editing.color : "conic-gradient(#ef4444,#f59e0b,#10b981,#3b82f6,#8b5cf6,#ef4444)" }}
-                  title="เลือกสีเอง"
+                  title="Custom colour"
                 >
                   <Palette size={13} className="text-white drop-shadow" />
                   <input
@@ -141,12 +141,12 @@ function Index() {
                     className="absolute inset-0 cursor-pointer opacity-0"
                     value={editing.color || "#3b82f6"}
                     onChange={(e) => setEditing({ ...editing, color: e.target.value })}
-                    aria-label="เลือกสีเอง"
+                    aria-label="Custom colour"
                   />
                 </label>
               </div>
             </Field>
-            <Field label="ประเภท">
+            <Field label="Type">
               <div className="flex gap-2">
                 {(["pay", "sponsor"] as EventType[]).map((t) => (
                   <button
@@ -163,7 +163,7 @@ function Index() {
             </Field>
             {editing.type === "pay" && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label="Value (บาท)">
+                <Field label="Value (THB)">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -175,28 +175,28 @@ function Index() {
                     onChange={(e) => setEditing({ ...editing, value: e.target.value === "" ? undefined : Number(e.target.value) })}
                   />
                 </Field>
-                <Field label="QT"><input className="inp" placeholder="เลขใบเสนอราคา" value={editing.qt || ""} onChange={(e) => setEditing({ ...editing, qt: e.target.value })} /></Field>
-                <Field label="BL"><input className="inp" placeholder="เลข BL" value={editing.bl || ""} onChange={(e) => setEditing({ ...editing, bl: e.target.value })} /></Field>
+                <Field label="QT"><input className="inp" placeholder="Quotation no." value={editing.qt || ""} onChange={(e) => setEditing({ ...editing, qt: e.target.value })} /></Field>
+                <Field label="BL"><input className="inp" placeholder="BL no." value={editing.bl || ""} onChange={(e) => setEditing({ ...editing, bl: e.target.value })} /></Field>
               </div>
             )}
-            <Field label="สถานที่"><input className="inp" value={editing.location} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></Field>
-            <Field label="รายละเอียด"><textarea rows={3} className="inp" value={editing.details} onChange={(e) => setEditing({ ...editing, details: e.target.value })} /></Field>
+            <Field label="Location"><input className="inp" value={editing.location} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></Field>
+            <Field label="Details"><textarea rows={3} className="inp" value={editing.details} onChange={(e) => setEditing({ ...editing, details: e.target.value })} /></Field>
             {(["stage", "exhibitor"] as Role[]).map((r) => (
-              <Field key={r} label={`ทีม ${ROLE_LABEL[r]} (คั่นด้วย ,)`}><input className="inp" placeholder="เช่น ต้น, บี, แนน" value={teamText[r]} onChange={(e) => setTeamText({ ...teamText, [r]: e.target.value })} /></Field>
+              <Field key={r} label={`Team ${ROLE_LABEL[r]} (comma-separated)`}><input className="inp" placeholder="e.g. Ton, Bee, Nan" value={teamText[r]} onChange={(e) => setTeamText({ ...teamText, [r]: e.target.value })} /></Field>
             ))}
             <fieldset className="space-y-3 rounded-lg border border-border p-3">
-              <legend className="px-1 text-xs font-medium text-muted-foreground">ติดต่อลูกค้า (ใส่อย่างใดอย่างหนึ่งก็ได้)</legend>
+              <legend className="px-1 text-xs font-medium text-muted-foreground">Client contact (any of these)</legend>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="ชื่อผู้ติดต่อ"><input className="inp" autoComplete="off" value={editing.contact.name} onChange={(e) => setContact({ name: e.target.value })} /></Field>
-                <Field label="เบอร์โทร"><input type="tel" inputMode="tel" className="inp" placeholder="08x-xxx-xxxx" value={editing.contact.phone} onChange={(e) => setContact({ phone: e.target.value })} /></Field>
-                <Field label="LINE ID"><input className="inp" autoCapitalize="off" placeholder="เช่น somchai หรือ @shopname" value={editing.contact.line} onChange={(e) => setContact({ line: e.target.value })} /></Field>
+                <Field label="Contact name"><input className="inp" autoComplete="off" value={editing.contact.name} onChange={(e) => setContact({ name: e.target.value })} /></Field>
+                <Field label="Phone"><input type="tel" inputMode="tel" className="inp" placeholder="08x-xxx-xxxx" value={editing.contact.phone} onChange={(e) => setContact({ phone: e.target.value })} /></Field>
+                <Field label="LINE ID"><input className="inp" autoCapitalize="off" placeholder="e.g. somchai or @shopname" value={editing.contact.line} onChange={(e) => setContact({ line: e.target.value })} /></Field>
                 <Field label="Email"><input type="email" inputMode="email" className="inp" autoCapitalize="off" placeholder="name@company.com" value={editing.contact.email} onChange={(e) => setContact({ email: e.target.value })} /></Field>
               </div>
             </fieldset>
-            <Field label="ลิงก์ Google (Maps / Drive / Docs)"><input className="inp" placeholder="https://..." value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} /></Field>
+            <Field label="Google link (Maps / Drive / Docs)"><input className="inp" placeholder="https://..." value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} /></Field>
             <div className="flex justify-between pt-2">
-              <button onClick={() => { setEvents((p) => p.filter((x) => x.id !== editing.id)); setEditing(null); }} className="flex items-center gap-1 text-sm text-destructive"><Trash2 size={14} />ลบ</button>
-              <button onClick={save} className="btn-primary">บันทึก</button>
+              <button onClick={() => { setEvents((p) => p.filter((x) => x.id !== editing.id)); setEditing(null); }} className="flex items-center gap-1 text-sm text-destructive"><Trash2 size={14} />Delete</button>
+              <button onClick={save} className="btn-primary">Save</button>
             </div>
           </div>
         </div>

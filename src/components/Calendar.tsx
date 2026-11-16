@@ -165,34 +165,34 @@ export function Calendar({
       <div className="mb-4 flex items-center justify-between gap-2 sm:mb-6">
         <h2 className="font-display text-2xl text-foreground sm:text-4xl">{label}</h2>
         <div className="flex shrink-0 gap-2">
-          <button onClick={() => shift(-1)} className="cal-nav" aria-label="เดือนก่อน">
+          <button onClick={() => shift(-1)} className="cal-nav" aria-label="Previous month">
             <ChevronLeft size={18} />
           </button>
           <button
             onClick={() => setCur({ y: now.getFullYear(), m: now.getMonth() })}
             className="cal-nav px-3 text-sm"
           >
-            วันนี้
+            Today
           </button>
-          <button onClick={() => shift(1)} className="cal-nav" aria-label="เดือนถัดไป">
+          <button onClick={() => shift(1)} className="cal-nav" aria-label="Next month">
             <ChevronRight size={18} />
           </button>
         </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="seg" role="group" aria-label="มุมมอง">
+        <div className="seg" role="group" aria-label="View">
           <button
             type="button"
             aria-pressed={view === "calendar"}
             onClick={() => setView("calendar")}
           >
             <CalendarDays size={15} />
-            ปฏิทิน
+            Calendar
           </button>
           <button type="button" aria-pressed={view === "table"} onClick={() => setView("table")}>
             <Table2 size={15} />
-            ตาราง
+            Table
           </button>
         </div>
         <div className="relative min-w-0 flex-1 basis-56">
@@ -204,17 +204,17 @@ export function Calendar({
             type="text"
             enterKeyHint="search"
             className="inp pl-9 pr-8"
-            placeholder="ค้นหา ชื่องาน ลูกค้า ผู้ติดต่อ ทีม QT/BL…"
+            placeholder="Search event, client, contact, team, QT/BL…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="ค้นหา event"
+            aria-label="Search events"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-secondary"
-              aria-label="ล้างคำค้น"
+              aria-label="Clear search"
             >
               <X size={14} />
             </button>
@@ -224,9 +224,9 @@ export function Calendar({
           className="inp w-auto"
           value={status}
           onChange={(e) => setStatus(e.target.value as Status | "")}
-          aria-label="กรองตามสถานะ"
+          aria-label="Filter by status"
         >
-          <option value="">ทุกสถานะ</option>
+          <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
               {STATUS_LABEL[s]}
@@ -237,20 +237,20 @@ export function Calendar({
 
       <div
         className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3"
-        aria-label="สรุปยอดเดือนนี้"
+        aria-label="Monthly summary"
       >
         <div className="flex items-center gap-2">
           <Wallet size={18} className="text-primary" />
           <span className="text-sm text-muted-foreground">
-            ยอด Pay รวมเดือนนี้{filtering && " (ตามที่กรอง)"}
+            Pay total this month{filtering && " (filtered)"}
           </span>
           <span className="font-display text-2xl text-foreground">{baht(sum.total)}</span>
         </div>
         <div className="flex gap-2 text-xs">
-          <span className="type-chip-pay">Pay {sum.payCount} งาน</span>
-          <span className="type-chip-sponsor">Sponsor {sum.sponsorCount} งาน</span>
+          <span className="type-chip-pay">Pay {sum.payCount}</span>
+          <span className="type-chip-sponsor">Sponsor {sum.sponsorCount}</span>
           {sum.cancelledCount > 0 && (
-            <span className="status-chip status-cancelled">ยกเลิก {sum.cancelledCount} งาน</span>
+            <span className="status-chip status-cancelled">Cancelled {sum.cancelledCount}</span>
           )}
         </div>
       </div>
@@ -272,9 +272,7 @@ export function Calendar({
           <div className="space-y-5 md:hidden">
             {agendaDays.length === 0 && (
               <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                {filtering
-                  ? "ไม่พบ event ที่ตรงกับที่ค้นหาในเดือนนี้"
-                  : "ยังไม่มี event ในเดือนนี้"}
+                {filtering ? "No matching events this month" : "No events this month yet"}
               </p>
             )}
             {agendaDays.map((d) => {
@@ -290,13 +288,13 @@ export function Calendar({
                         day: "numeric",
                         month: "short",
                       })}
-                      {key === today && <span className="ml-2 day-chip">วันนี้</span>}
+                      {key === today && <span className="ml-2 day-chip">Today</span>}
                     </h3>
                     {!readOnly && (
                       <button
                         onClick={() => onAdd?.(key)}
                         className="cal-nav h-8 min-w-8"
-                        aria-label="เพิ่ม event วันนี้"
+                        aria-label="Add event on this day"
                       >
                         <Plus size={16} />
                       </button>
@@ -375,7 +373,7 @@ export function Calendar({
                               <button
                                 onClick={() => onAdd?.(key)}
                                 className="cal-add"
-                                aria-label={`เพิ่ม event วันที่ ${d.getDate()}`}
+                                aria-label={`Add event on ${d.getDate()}`}
                               >
                                 <Plus size={14} />
                               </button>
@@ -441,7 +439,7 @@ export function Calendar({
           <button
             onClick={() => onAdd?.(isThisMonth ? today : ymd(new Date(cur.y, cur.m, 1)))}
             className="btn-primary fixed bottom-5 right-5 z-40 h-14 w-14 justify-center p-0 shadow-lg"
-            aria-label="เพิ่ม event"
+            aria-label="Add event"
           >
             <Plus size={24} />
           </button>
@@ -770,7 +768,7 @@ function EventSheet({
               </div>
             )}
           </div>
-          <button onClick={onClose} className="cal-nav shrink-0" aria-label="ปิด">
+          <button onClick={onClose} className="cal-nav shrink-0" aria-label="Close">
             <X size={18} />
           </button>
         </div>
@@ -809,25 +807,23 @@ function EventTable({
   return (
     <div className="space-y-2">
       {allMonths && (
-        <p className="text-xs text-muted-foreground">
-          กำลังค้นหาทุกเดือน · พบ {rows.length} รายการ
-        </p>
+        <p className="text-xs text-muted-foreground">Searching all months · {rows.length} found</p>
       )}
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-secondary/60 text-xs text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">วันที่</th>
-              <th className="px-3 py-2 font-medium">ชื่องาน</th>
-              <th className="px-3 py-2 font-medium">ลูกค้า</th>
-              <th className="px-3 py-2 font-medium">สถานะ</th>
-              <th className="px-3 py-2 font-medium">ทีม</th>
+              <th className="px-3 py-2 font-medium">Date</th>
+              <th className="px-3 py-2 font-medium">Event</th>
+              <th className="px-3 py-2 font-medium">Client</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Team</th>
               <th className="px-3 py-2 text-right font-medium">Value</th>
               <th className="px-3 py-2 font-medium">QT / BL</th>
-              <th className="px-3 py-2 font-medium">ผู้ติดต่อ</th>
+              <th className="px-3 py-2 font-medium">Contact</th>
               {actions && (
                 <th className="w-12 px-2 py-2">
-                  <span className="sr-only">ตัวเลือก</span>
+                  <span className="sr-only">Actions</span>
                 </th>
               )}
             </tr>
@@ -836,7 +832,7 @@ function EventTable({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={cols} className="px-3 py-8 text-center text-muted-foreground">
-                  ไม่มี event
+                  No events
                 </td>
               </tr>
             )}
@@ -859,9 +855,7 @@ function EventTable({
                   <td className="whitespace-nowrap px-3 py-2.5">
                     {shortDate(e.date)}
                     {e.endDate && e.endDate > e.date && (
-                      <div className="text-xs text-muted-foreground">
-                        ถึง {shortDate(e.endDate)}
-                      </div>
+                      <div className="text-xs text-muted-foreground">to {shortDate(e.endDate)}</div>
                     )}
                     {!!e.setupDays?.length && (
                       <div className="mt-0.5 text-xs text-muted-foreground">
@@ -919,7 +913,7 @@ function EventTable({
                           <button
                             type="button"
                             className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                            aria-label={`ตัวเลือกสำหรับ ${e.title || "Event"}`}
+                            aria-label={`Actions for ${e.title || "Event"}`}
                           >
                             <MoreHorizontal size={18} />
                           </button>
@@ -927,14 +921,14 @@ function EventTable({
                         <DropdownMenuContent align="end" className="w-36">
                           <DropdownMenuItem onSelect={() => actions.onEdit(e)}>
                             <Pencil size={14} />
-                            แก้ไข
+                            Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => setDeleting(e)}
                             className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                           >
                             <Trash2 size={14} />
-                            ลบ
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -948,8 +942,8 @@ function EventTable({
             <tfoot className="border-t border-border bg-secondary/40 text-sm font-semibold">
               <tr>
                 <td colSpan={5} className="px-3 py-2">
-                  รวม Pay ({rows.filter((r) => r.type === "pay" && isActive(r)).length} งาน ·
-                  ไม่รวมที่ยกเลิก)
+                  Pay total ({rows.filter((r) => r.type === "pay" && isActive(r)).length} events ·
+                  excl. cancelled)
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                   {baht(
@@ -968,14 +962,14 @@ function EventTable({
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>ลบ event นี้?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this event?</AlertDialogTitle>
             <AlertDialogDescription>
-              “{deleting?.title || "Event"}”{deleting ? ` · ${dateRange(deleting)}` : ""}{" "}
-              จะถูกลบออกจากปฏิทิน และกู้คืนไม่ได้
+              “{deleting?.title || "Event"}”{deleting ? ` · ${dateRange(deleting)}` : ""} will be
+              removed from the calendar. This can’t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -983,7 +977,7 @@ function EventTable({
                 setDeleting(null);
               }}
             >
-              ลบ
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1060,7 +1054,7 @@ function EventDetails({
 
       {hasContact(c) && (
         <div className="space-y-1.5 rounded-md bg-secondary/60 p-2.5 text-sm">
-          <div className="text-xs font-medium text-muted-foreground">ติดต่อลูกค้า</div>
+          <div className="text-xs font-medium text-muted-foreground">Client contact</div>
           {c.name && (
             <div className="flex items-center gap-2">
               <User size={14} className="shrink-0 text-primary" />
@@ -1107,19 +1101,19 @@ function EventDetails({
           className="flex items-center gap-1 truncate text-sm text-primary underline"
         >
           <Link2 size={14} className="shrink-0" />
-          เปิดลิงก์ Google
+          Open Google link
         </a>
       )}
 
       <div className="flex flex-wrap gap-2 pt-1">
         <button type="button" onClick={sendToTeam} className="btn-soft">
           {sent ? <Check size={14} /> : <Send size={14} />}
-          {sent ? "คัดลอกแล้ว วางใน LINE ได้เลย" : "ส่งให้ทีม"}
+          {sent ? "Copied — paste into LINE" : "Send to team"}
         </button>
         {!readOnly && (
           <button type="button" onClick={() => onEdit?.(e)} className="btn-soft">
             <Pencil size={14} />
-            แก้ไข
+            Edit
           </button>
         )}
       </div>
