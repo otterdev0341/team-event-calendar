@@ -569,46 +569,48 @@ function SpanBar({
           {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
         </span>
       </div>
-      {/* Line 2 */}
-      <div className="flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground">
-        <span className="hidden shrink-0 items-center gap-1 @[15rem]:flex">
+      {/* Line 2: when & where */}
+      <div className="hidden min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground @[15rem]:flex">
+        <span className="flex shrink-0 items-center gap-1">
           <CalendarDays size={12} />
           {short(e.date)} – {short(e.endDate!)}
         </span>
         {e.location && (
-          <span className="hidden min-w-0 shrink-[3] items-center gap-1 @[19rem]:flex">
+          <span className="flex min-w-0 items-center gap-1">
             <MapPin size={12} className="shrink-0" />
             <span className="truncate">{e.location}</span>
           </span>
         )}
-        {live.length > 0 && (
-          <span className="flex min-w-0 shrink items-center gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide">
-              {ROLE_SHORT.stage}
-            </span>
-            {live.map((t) => (
-              <span key={t.name} className="team-chip whitespace-nowrap">
-                {t.name}
-              </span>
-            ))}
-          </span>
-        )}
-        {booth.length > 0 && (
-          <span className="flex min-w-0 shrink items-center gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide">
-              {ROLE_SHORT.exhibitor}
-            </span>
-            {booth.map((t) => (
-              <span key={t.name} className="team-chip-alt whitespace-nowrap">
-                {t.name}
-              </span>
-            ))}
-          </span>
-        )}
-        {!live.length && !booth.length && (
-          <span className="italic @[15rem]:hidden">ยังไม่มีทีม</span>
-        )}
       </div>
+      {/* Line 3: team — wraps so every name stays visible */}
+      {(live.length > 0 || booth.length > 0) && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+          {live.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide">
+                {ROLE_SHORT.stage}
+              </span>
+              {live.map((t) => (
+                <span key={t.name} className="team-chip whitespace-nowrap">
+                  {t.name}
+                </span>
+              ))}
+            </span>
+          )}
+          {booth.length > 0 && (
+            <span className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide">
+                {ROLE_SHORT.exhibitor}
+              </span>
+              {booth.map((t) => (
+                <span key={t.name} className="team-chip-alt whitespace-nowrap">
+                  {t.name}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 }
