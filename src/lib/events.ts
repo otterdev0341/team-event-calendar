@@ -1,10 +1,34 @@
+export type Role = "stage" | "exhibitor";
+export type TeamMember = { name: string; role: Role };
+export const ROLE_LABEL: Record<Role, string> = { stage: "Stage · Live translation", exhibitor: "Exhibitor · ออกบูธ" };
+
+export function normalize(e: any): CalEvent {
+  return { ...e, team: (e.team || []).map((t: any) => (typeof t === "string" ? { name: t, role: "stage" } : t)) };
+}
+
+/** Map each day (YYYY-MM-DD) to events covering it, with day index. */
+export function eventsByDay(events: CalEvent[]) {
+  const out: Record<string, { e: CalEvent; day: number; total: number }[]> = {};
+  for (const e of events) {
+    const start = new Date(e.date + "T00:00");
+    const end = new Date((e.endDate && e.endDate >= e.date ? e.endDate : e.date) + "T00:00");
+    const total = Math.round((+end - +start) / 864e5) + 1;
+    for (let i = 0; i < total && i < 366; i++) {
+      const d = new Date(start); d.setDate(d.getDate() + i);
+      (out[ymd(d)] ||= []).push({ e, day: i + 1, total });
+    }
+  }
+  return out;
+}
+
 export type CalEvent = {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD start
+  endDate?: string; // YYYY-MM-DD inclusive
   title: string;
   location: string;
   details: string;
-  team: string[];
+  team: TeamMember[];
   url: string;
 };
 
@@ -12,7 +36,7 @@ const KEY = "event-calendar-v1";
 
 export function loadEvents(): CalEvent[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    return JSON.parse(localStorage.getItem(KEY) || "[]").map(normalize);
   } catch {
     return [];
   }
@@ -31,7 +55,7 @@ export function decodeEvents(str: string): CalEvent[] {
   try {
     const b = atob(str.replace(/-/g, "+").replace(/_/g, "/"));
     const bytes = Uint8Array.from(b, (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
+    return JSON.parse(new TextDecoder().decode(bytes)).map(normalize);
   } catch {
     return [];
   }

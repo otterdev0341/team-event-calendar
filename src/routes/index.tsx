@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Share2, Trash2, X } from "lucide-react";
 import { Calendar } from "@/components/Calendar";
-import { type CalEvent, encodeEvents, loadEvents, saveEvents } from "@/lib/events";
+import { type CalEvent, type Role, ROLE_LABEL, encodeEvents, loadEvents, saveEvents } from "@/lib/events";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,22 +18,24 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const names = (e: CalEvent, r: Role) => e.team.filter((t) => t.role === r).map((t) => t.name).join(", ");
 const blank = (date: string): CalEvent => ({ id: crypto.randomUUID(), date, title: "", location: "", details: "", team: [], url: "" });
 
 function Index() {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [editing, setEditing] = useState<CalEvent | null>(null);
-  const [teamText, setTeamText] = useState("");
+  const [teamText, setTeamText] = useState<Record<Role, string>>({ stage: "", exhibitor: "" });
   const [copied, setCopied] = useState(false);
 
   useEffect(() => { setEvents(loadEvents()); setReady(true); }, []);
   useEffect(() => { if (ready) saveEvents(events); }, [events, ready]);
 
-  const open = (e: CalEvent) => { setEditing(e); setTeamText(e.team.join(", ")); };
+  const open = (e: CalEvent) => { setEditing(e); setTeamText({ stage: names(e, "stage"), exhibitor: names(e, "exhibitor") }); };
   const save = () => {
     if (!editing) return;
-    const ev = { ...editing, team: teamText.split(",").map((s) => s.trim()).filter(Boolean) };
+    const split = (r: Role) => teamText[r].split(",").map((s) => s.trim()).filter(Boolean).map((name) => ({ name, role: r }));
+    const ev = { ...editing, team: [...split("stage"), ...split("exhibitor")] };
     setEvents((p) => [...p.filter((x) => x.id !== ev.id), ev]);
     setEditing(null);
   };
@@ -63,11 +65,16 @@ function Index() {
               <h3 className="font-display text-2xl">Event</h3>
               <button onClick={() => setEditing(null)}><X size={18} /></button>
             </div>
-            <Field label="วันที่"><input type="date" className="inp" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="วันเริ่ม"><input type="date" className="inp" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></Field>
+              <Field label="วันสิ้นสุด (ถ้าหลายวัน)"><input type="date" className="inp" min={editing.date} value={editing.endDate || ""} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} /></Field>
+            </div>
             <Field label="ชื่อ event"><input className="inp" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></Field>
             <Field label="สถานที่"><input className="inp" value={editing.location} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></Field>
             <Field label="รายละเอียด"><textarea rows={3} className="inp" value={editing.details} onChange={(e) => setEditing({ ...editing, details: e.target.value })} /></Field>
-            <Field label="ทีมงานที่ส่งไป (คั่นด้วย ,)"><input className="inp" placeholder="เช่น ต้น, บี, แนน" value={teamText} onChange={(e) => setTeamText(e.target.value)} /></Field>
+            {(["stage", "exhibitor"] as Role[]).map((r) => (
+              <Field key={r} label={`ทีม ${ROLE_LABEL[r]} (คั่นด้วย ,)`}><input className="inp" placeholder="เช่น ต้น, บี, แนน" value={teamText[r]} onChange={(e) => setTeamText({ ...teamText, [r]: e.target.value })} /></Field>
+            ))}
             <Field label="ลิงก์ Google (Maps / Drive / Docs)"><input className="inp" placeholder="https://..." value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} /></Field>
             <div className="flex justify-between pt-2">
               <button onClick={() => { setEvents((p) => p.filter((x) => x.id !== editing.id)); setEditing(null); }} className="flex items-center gap-1 text-sm text-destructive"><Trash2 size={14} />ลบ</button>

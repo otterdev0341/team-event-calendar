@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, MapPin, Link2, Plus, Users } from "lucide-react";
-import { type CalEvent, monthWeeks, ymd } from "@/lib/events";
+import { type CalEvent, type Role, ROLE_LABEL, eventsByDay, monthWeeks, ymd } from "@/lib/events";
 
 const TH_DAYS = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
 
@@ -18,10 +18,7 @@ export function Calendar({
   const now = new Date();
   const [cur, setCur] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const weeks = monthWeeks(cur.y, cur.m);
-  const byDate = events.reduce<Record<string, CalEvent[]>>((a, e) => {
-    (a[e.date] ||= []).push(e);
-    return a;
-  }, {});
+  const byDate = eventsByDay(events);
   const shift = (d: number) => {
     const n = new Date(cur.y, cur.m + d, 1);
     setCur({ y: n.getFullYear(), m: n.getMonth() });
@@ -64,23 +61,30 @@ export function Calendar({
                           <button onClick={() => onAdd?.(key)} className="cal-add" aria-label="เพิ่ม event"><Plus size={14} /></button>
                         )}
                       </div>
-                      {evs?.map((e) => (
+                      {evs?.map(({ e, day, total }) => (
                         <div
                           key={e.id}
                           onClick={() => !readOnly && onEdit?.(e)}
                           className={`mt-2 space-y-2 rounded-md bg-card p-3 text-left shadow-sm ${readOnly ? "" : "cursor-pointer hover:ring-2 hover:ring-primary/40"}`}
                         >
                           <div className="font-semibold leading-tight text-card-foreground">{e.title || "Event"}</div>
+                          {total > 1 && <span className="day-chip">วันที่ {day}/{total}</span>}
                           {e.location && (
                             <div className="flex items-start gap-1 text-sm text-muted-foreground"><MapPin size={14} className="mt-0.5 shrink-0" />{e.location}</div>
                           )}
                           {e.details && <p className="whitespace-pre-wrap text-sm text-foreground/80">{e.details}</p>}
-                          {e.team.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1">
-                              <Users size={14} className="text-primary" />
-                              {e.team.map((t) => <span key={t} className="team-chip">{t}</span>)}
-                            </div>
-                          )}
+                          {(["stage", "exhibitor"] as Role[]).map((r) => {
+                            const ppl = e.team.filter((t) => t.role === r);
+                            if (!ppl.length) return null;
+                            return (
+                              <div key={r} className="space-y-1">
+                                <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Users size={12} className="text-primary" />{ROLE_LABEL[r]}</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {ppl.map((t) => <span key={t.name} className={r === "stage" ? "team-chip" : "team-chip-alt"}>{t.name}</span>)}
+                                </div>
+                              </div>
+                            );
+                          })}
                           {e.url && (
                             <a href={e.url} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1 truncate text-sm text-primary underline">
                               <Link2 size={14} className="shrink-0" />เปิดลิงก์ Google

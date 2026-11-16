@@ -45,6 +45,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-highlight: var(--highlight);
+  --color-highlight-alt: var(--highlight-alt);
   --font-display: 'Fraunces', 'Noto Serif Thai', serif;
   --font-sans: 'IBM Plex Sans Thai', sans-serif;
   --color-primary-foreground: var(--primary-foreground);
@@ -86,6 +87,7 @@
   --primary: oklch(0.58 0.17 38);
   --primary-foreground: oklch(0.99 0.01 85);
   --highlight: oklch(0.9 0.15 95);
+  --highlight-alt: oklch(0.86 0.09 200);
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
@@ -167,6 +169,8 @@
   .cal-day-full .cal-num { @apply text-2xl text-primary; }
   .cal-add { @apply rounded-full p-1 text-muted-foreground opacity-50 hover:bg-primary hover:text-primary-foreground hover:opacity-100; }
   .team-chip { @apply rounded bg-highlight px-1.5 py-0.5 text-xs font-semibold text-foreground; }
+  .team-chip-alt { @apply rounded bg-highlight-alt px-1.5 py-0.5 text-xs font-semibold text-foreground; }
+  .day-chip { @apply inline-block rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground; }
   .btn-primary { @apply inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow hover:opacity-90; }
   .inp { @apply w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40; }
 }
