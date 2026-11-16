@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Share2, Trash2, X } from "lucide-react";
+import { Check, Palette, Share2, Trash2, Wrench, X } from "lucide-react";
 import { Calendar } from "@/components/Calendar";
-import { type CalEvent, type Contact, type EventType, type Role, type Status, ROLE_LABEL, STATUSES, STATUS_LABEL, TYPE_LABEL, emptyContact, encodeEvents, isRealName, loadEvents, saveEvents } from "@/lib/events";
+import { type CalEvent, type Contact, type EventType, type Role, type Status, COLOR_PRESETS, ROLE_LABEL, STATUSES, STATUS_LABEL, TYPE_LABEL, emptyContact, encodeEvents, eventDays, isRealName, loadEvents, normalize, saveEvents } from "@/lib/events";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,7 +36,8 @@ function Index() {
   const save = () => {
     if (!editing) return;
     const split = (r: Role) => teamText[r].split(",").map((s) => s.trim()).filter(isRealName).map((name) => ({ name, role: r }));
-    const ev: CalEvent = { ...editing, team: [...split("stage"), ...split("exhibitor")] };
+    // normalize drops setup days outside the date range and invalid colours
+    const ev: CalEvent = normalize({ ...editing, team: [...split("stage"), ...split("exhibitor")] });
     if (ev.type === "sponsor") { delete ev.value; delete ev.qt; delete ev.bl; }
     setEvents((p) => [...p.filter((x) => x.id !== ev.id), ev]);
     setEditing(null);
@@ -71,6 +72,32 @@ function Index() {
               <Field label="วันเริ่ม"><input type="date" className="inp" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></Field>
               <Field label="วันสิ้นสุด (ถ้าหลายวัน)"><input type="date" className="inp" min={editing.date} value={editing.endDate || ""} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} /></Field>
             </div>
+            {editing.endDate && editing.endDate > editing.date && (
+              <Field label="วัน Setup (เตรียมงาน / ติดตั้ง) — กดเลือกวัน">
+                <div className="flex flex-wrap gap-1.5">
+                  {eventDays(editing).map((d) => {
+                    const on = !!editing.setupDays?.includes(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() =>
+                          setEditing({
+                            ...editing,
+                            setupDays: on ? editing.setupDays!.filter((x) => x !== d) : [...(editing.setupDays || []), d].sort(),
+                          })
+                        }
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${on ? "border-zinc-800 bg-zinc-800 text-white" : "border-input bg-background text-foreground hover:bg-secondary"}`}
+                      >
+                        {on && <Wrench size={11} />}
+                        {new Date(d + "T00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+            )}
             <Field label="ชื่องาน"><input className="inp" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="ลูกค้า / บริษัท"><input className="inp" placeholder="เช่น บริษัท เอบีซี จำกัด" value={editing.customer} onChange={(e) => setEditing({ ...editing, customer: e.target.value })} /></Field>
@@ -80,6 +107,45 @@ function Index() {
                 </select>
               </Field>
             </div>
+            <Field label="สีพื้นหลังในปฏิทิน">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing({ ...editing, color: undefined })}
+                  aria-pressed={!editing.color}
+                  className={`rounded-full border px-2.5 py-1 text-xs ${!editing.color ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:bg-secondary"}`}
+                >
+                  ตามสถานะ
+                </button>
+                {COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setEditing({ ...editing, color: c })}
+                    aria-label={`สี ${c}`}
+                    aria-pressed={editing.color === c}
+                    className="grid h-7 w-7 place-items-center rounded-full ring-offset-2 ring-offset-card aria-pressed:ring-2 aria-pressed:ring-foreground"
+                    style={{ backgroundColor: c }}
+                  >
+                    {editing.color === c && <Check size={14} className="text-white" />}
+                  </button>
+                ))}
+                <label
+                  className={`relative grid h-7 w-7 cursor-pointer place-items-center overflow-hidden rounded-full border border-input ${editing.color && !(COLOR_PRESETS as readonly string[]).includes(editing.color) ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`}
+                  style={{ background: editing.color && !(COLOR_PRESETS as readonly string[]).includes(editing.color) ? editing.color : "conic-gradient(#ef4444,#f59e0b,#10b981,#3b82f6,#8b5cf6,#ef4444)" }}
+                  title="เลือกสีเอง"
+                >
+                  <Palette size={13} className="text-white drop-shadow" />
+                  <input
+                    type="color"
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    value={editing.color || "#3b82f6"}
+                    onChange={(e) => setEditing({ ...editing, color: e.target.value })}
+                    aria-label="เลือกสีเอง"
+                  />
+                </label>
+              </div>
+            </Field>
             <Field label="ประเภท">
               <div className="flex gap-2">
                 {(["pay", "sponsor"] as EventType[]).map((t) => (

@@ -18,6 +18,7 @@ import {
   User,
   Users,
   Wallet,
+  Wrench,
   X,
 } from "lucide-react";
 import {
@@ -32,9 +33,12 @@ import {
   TYPE_LABEL,
   baht,
   dateRange,
+  eventDays,
   eventsByDay,
   hasContact,
   isActive,
+  isSetupDay,
+  setupLabel,
   lineUrl,
   matchesQuery,
   monthSummary,
@@ -60,6 +64,30 @@ const STATUS_BAR: Record<Status, string> = {
   paid: "border-l-emerald-600",
   cancelled: "border-l-zinc-300",
 };
+
+/**
+ * Inline colours for an event with its own colour (overrides the status colours).
+ * `tint` also sets a light background mixed from that colour.
+ */
+const colorStyle = (e: CalEvent, tint: boolean): React.CSSProperties =>
+  e.color
+    ? {
+        borderLeftColor: e.color,
+        ...(tint ? { backgroundColor: `color-mix(in srgb, ${e.color} 20%, white)` } : {}),
+      }
+    : {};
+
+/** Split a week segment into runs of setup days and show days. */
+function piecesOf(sg: Segment, keys: string[]) {
+  const out: { start: number; end: number; setup: boolean }[] = [];
+  for (let c = sg.start; c <= sg.end; c++) {
+    const setup = isSetupDay(sg.e, keys[c]!);
+    const last = out[out.length - 1];
+    if (last && last.setup === setup) last.end = c;
+    else out.push({ start: c, end: c, setup });
+  }
+  return out;
+}
 
 export function Calendar({
   events,
@@ -322,17 +350,20 @@ export function Calendar({
                       style={{ gridColumn: "1 / -1", gridRow: 1 }}
                     />
                     {/* Multi-day bars */}
-                    {segs.map((sg) => (
-                      <SpanBar
-                        key={sg.e.id}
-                        sg={sg}
-                        onOpen={openEvent}
-                        style={{
-                          gridColumn: `${sg.start + 1} / ${sg.end + 2}`,
-                          gridRow: sg.lane + 2,
-                        }}
-                      />
-                    ))}
+                    {segs.flatMap((sg) =>
+                      piecesOf(sg, days.map(ymd)).map((pc) => (
+                        <SpanBar
+                          key={sg.e.id + ":" + pc.start}
+                          sg={sg}
+                          piece={pc}
+                          onOpen={openEvent}
+                          style={{
+                            gridColumn: `${pc.start + 1} / ${pc.end + 2}`,
+                            gridRow: sg.lane + 2,
+                          }}
+                        />
+                      )),
+                    )}
                     {/* Single-day events */}
                     {days.map((d, c) => {
                       const singles = visible[c]
@@ -440,6 +471,7 @@ function EventPill({
     <button
       type="button"
       onClick={() => onOpen(e)}
+      style={colorStyle(e, true)}
       className={`block w-full space-y-1.5 rounded-md border border-border/70 border-l-4 bg-card text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${STATUS_BAR[e.status]} ${compact ? "p-2" : "p-3"} ${isActive(e) ? "" : "opacity-60"}`}
     >
       <div
@@ -454,11 +486,17 @@ function EventPill({
       )}
       <div className="flex flex-wrap items-center gap-1">
         <StatusChip status={e.status} />
-        {total > 1 && (
-          <span className="day-chip">
-            {day}/{total}
-          </span>
-        )}
+        {total > 1 &&
+          (isSetupDay(e, eventDays(e)[day - 1] || "") ? (
+            <span className="setup-chip">
+              <Wrench size={10} />
+              Setup
+            </span>
+          ) : (
+            <span className="day-chip">
+              {day}/{total}
+            </span>
+          ))}
         <ValueBadge e={e} />
       </div>
       {!compact && e.location && (
@@ -508,14 +546,21 @@ const STATUS_TINT: Record<Status, string> = {
  */
 function SpanBar({
   sg,
+  piece,
   onOpen,
   style,
 }: {
   sg: Segment;
+  piece: { start: number; end: number; setup: boolean };
   onOpen: (e: CalEvent) => void;
   style: React.CSSProperties;
 }) {
-  const { e, contLeft, contRight } = sg;
+  const { e } = sg;
+  // Outer ends follow the week segment; inner ends (setup ↔ show) get a small gap.
+  const contLeft = piece.start === sg.start && sg.contLeft;
+  const contRight = piece.end === sg.end && sg.contRight;
+  const innerLeft = piece.start !== sg.start;
+  const innerRight = piece.end !== sg.end;
   const short = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
   const live = e.team.filter((t) => t.role === "stage");
@@ -533,55 +578,76 @@ function SpanBar({
     <button
       type="button"
       onClick={() => onOpen(e)}
-      style={style}
-      title={tip}
+      style={{ ...style, ...colorStyle(e, true) }}
+      title={piece.setup ? `Setup · ${tip}` : tip}
       className={[
         "@container relative z-[1] min-w-0 space-y-1 px-2 py-1.5 text-left text-[13px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-        STATUS_TINT[e.status],
-        contLeft ? "-ml-px rounded-l-none" : `ml-1.5 rounded-l border-l-4 ${STATUS_BAR[e.status]}`,
-        contRight ? "-mr-px rounded-r-none" : "mr-1.5 rounded-r",
+        e.color ? "" : STATUS_TINT[e.status],
+        piece.setup ? "setup-stripes" : "",
+        contLeft
+          ? "-ml-px rounded-l-none"
+          : `${innerLeft ? "ml-1" : "ml-1.5"} rounded-l border-l-4 ${STATUS_BAR[e.status]}`,
+        contRight ? "-mr-px rounded-r-none" : `${innerRight ? "mr-1" : "mr-1.5"} rounded-r`,
         isActive(e) ? "" : "opacity-60",
       ].join(" ")}
     >
-      {/* Line 1 */}
-      <div className="flex min-w-0 items-center gap-1.5">
-        {contLeft && (
-          <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-            <ChevronLeft size={13} />
-            {short(e.date)}
+      {piece.setup ? (
+        <div className="flex min-w-0 items-center gap-1.5">
+          {contLeft && <ChevronLeft size={13} className="shrink-0 text-muted-foreground" />}
+          <span className="setup-chip shrink-0">
+            <Wrench size={10} />
+            Setup
           </span>
-        )}
-        <span
-          className={`min-w-[3rem] shrink truncate font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
-        >
-          {e.title || "Event"}
-        </span>
-        {e.customer && (
-          <span className="min-w-0 shrink-[4] truncate text-xs text-muted-foreground">
-            · {e.customer}
+          <span className="min-w-0 truncate font-semibold text-card-foreground/80">
+            {e.title || "Event"}
           </span>
-        )}
-        <span className="ml-auto flex shrink-0 items-center gap-1">
-          <span className="hidden @[15rem]:inline [&>span]:bg-white/80">
-            <StatusChip status={e.status} />
-          </span>
-          <ValueBadge e={e} />
-          {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
-        </span>
-      </div>
-      {/* Line 2: when & where */}
-      <div className="hidden min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground @[15rem]:flex">
-        <span className="flex shrink-0 items-center gap-1">
-          <CalendarDays size={12} />
-          {short(e.date)} – {short(e.endDate!)}
-        </span>
-        {e.location && (
-          <span className="flex min-w-0 items-center gap-1">
-            <MapPin size={12} className="shrink-0" />
-            <span className="truncate">{e.location}</span>
-          </span>
-        )}
-      </div>
+          {contRight && (
+            <ChevronRight size={13} className="ml-auto shrink-0 text-muted-foreground" />
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Line 1 */}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {contLeft && (
+              <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+                <ChevronLeft size={13} />
+                {short(e.date)}
+              </span>
+            )}
+            <span
+              className={`min-w-[3rem] shrink truncate font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
+            >
+              {e.title || "Event"}
+            </span>
+            {e.customer && (
+              <span className="min-w-0 shrink-[4] truncate text-xs text-muted-foreground">
+                · {e.customer}
+              </span>
+            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1">
+              <span className="hidden @[15rem]:inline [&>span]:bg-white/80">
+                <StatusChip status={e.status} />
+              </span>
+              <ValueBadge e={e} />
+              {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
+            </span>
+          </div>
+          {/* Line 2: when & where */}
+          <div className="hidden min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground @[15rem]:flex">
+            <span className="flex shrink-0 items-center gap-1">
+              <CalendarDays size={12} />
+              {short(e.date)} – {short(e.endDate!)}
+            </span>
+            {e.location && (
+              <span className="flex min-w-0 items-center gap-1">
+                <MapPin size={12} className="shrink-0" />
+                <span className="truncate">{e.location}</span>
+              </span>
+            )}
+          </div>
+        </>
+      )}
       {/* Line 3: team — wraps so every name stays visible */}
       {(live.length > 0 || booth.length > 0) && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
@@ -745,6 +811,11 @@ function EventTable({
                         ถึง {shortDate(e.endDate)}
                       </div>
                     )}
+                    {!!e.setupDays?.length && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        🔧 Setup {setupLabel(e)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 font-medium">
                     {e.title || "Event"}
@@ -847,6 +918,15 @@ function EventDetails({
   return (
     <div className="space-y-3">
       <div className="text-xs text-muted-foreground">{dateRange(e)}</div>
+      {!!e.setupDays?.length && (
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="setup-chip">
+            <Wrench size={10} />
+            Setup
+          </span>
+          {setupLabel(e)}
+        </div>
+      )}
       {e.type === "pay" && (e.qt || e.bl) && (
         <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
           <FileText size={12} className="shrink-0" />

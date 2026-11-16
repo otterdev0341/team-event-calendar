@@ -75,6 +75,12 @@ export function normalize(e: any): CalEvent {
     qt: type === "pay" ? e.qt || "" : undefined,
     bl: type === "pay" ? e.bl || "" : undefined,
     customer: e.customer || "",
+    // Setup days only make sense inside a multi-day range.
+    setupDays:
+      e.endDate && e.endDate > e.date && Array.isArray(e.setupDays)
+        ? [...new Set<string>(e.setupDays)].filter((d) => d >= e.date && d <= e.endDate).sort()
+        : undefined,
+    color: typeof e.color === "string" && HEX.test(e.color) ? e.color.toLowerCase() : undefined,
     status: STATUSES.includes(e.status) ? e.status : "talking",
     contact: { ...emptyContact(), ...(e.contact || {}) },
     team: (e.team || [])
@@ -119,7 +125,39 @@ export type CalEvent = {
   qt?: string | undefined;
   /** Pay only: billing number (BL). */
   bl?: string | undefined;
+  /** Days (YYYY-MM-DD) inside a multi-day event that are setup / load-in days. */
+  setupDays?: string[] | undefined;
+  /** Optional background colour (#rrggbb). Unset = colour follows status. */
+  color?: string | undefined;
 };
+
+/** Preset event colours offered in the form (plus a free colour picker). */
+export const COLOR_PRESETS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"] as const;
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** All days (YYYY-MM-DD) an event covers, start to end inclusive. */
+export function eventDays(e: Pick<CalEvent, "date" | "endDate">): string[] {
+  const out: string[] = [];
+  const end = e.endDate && e.endDate > e.date ? e.endDate : e.date;
+  const d = new Date(e.date + "T00:00");
+  for (let i = 0; i < 366; i++) {
+    const k = ymd(d);
+    out.push(k);
+    if (k >= end) break;
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+export const isSetupDay = (e: CalEvent, day: string) => !!e.setupDays?.includes(day);
+
+/** "20 พ.ย., 21 พ.ย." for the setup days, or "" when there are none. */
+export const setupLabel = (e: CalEvent) =>
+  (e.setupDays || [])
+    .map((d) =>
+      new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+    )
+    .join(", ");
 
 /** Cancelled events stay on the calendar but are left out of money totals. */
 export const isActive = (e: CalEvent) => e.status !== "cancelled";
@@ -161,6 +199,7 @@ export const dateRange = (e: CalEvent) =>
 export function teamMessage(e: CalEvent): string {
   const lines = [`📌 ${e.title || "Event"}`, `📅 ${dateRange(e)}`];
   if (e.customer) lines.push(`🏢 ${e.customer}`);
+  if (e.setupDays?.length) lines.push(`🔧 Setup: ${setupLabel(e)}`);
   if (e.location) lines.push(`📍 ${e.location}`);
   for (const r of ["stage", "exhibitor"] as Role[]) {
     const ppl = e.team.filter((t) => t.role === r).map((t) => t.name);

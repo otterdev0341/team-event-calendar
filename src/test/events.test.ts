@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   decodeEvents,
+  eventDays,
   encodeEvents,
   lineUrl,
   matchesQuery,
@@ -220,5 +221,38 @@ describe("team placeholders", () => {
       ],
     });
     expect(e.team).toEqual([{ name: "TN ฟอร์ด", role: "stage" }]);
+  });
+});
+
+describe("setup days & colour", () => {
+  it("lists every day of an event", () => {
+    expect(eventDays({ date: "2026-11-30", endDate: "2026-12-02" })).toEqual([
+      "2026-11-30",
+      "2026-12-01",
+      "2026-12-02",
+    ]);
+    expect(eventDays({ date: "2026-11-05" })).toEqual(["2026-11-05"]);
+  });
+
+  it("keeps only setup days inside a multi-day range, sorted and unique", () => {
+    const e = ev({
+      date: "2026-11-20",
+      endDate: "2026-11-22",
+      setupDays: ["2026-11-22", "2026-11-19", "2026-11-20", "2026-11-20"],
+    });
+    expect(e.setupDays).toEqual(["2026-11-20", "2026-11-22"]);
+    expect(ev({ date: "2026-11-20", setupDays: ["2026-11-20"] }).setupDays).toBeUndefined();
+  });
+
+  it("accepts #rrggbb colours only", () => {
+    expect(ev({ date: "2026-11-20", color: "#3B82F6" }).color).toBe("#3b82f6");
+    expect(ev({ date: "2026-11-20", color: "red" }).color).toBeUndefined();
+  });
+
+  it("mentions setup days in the team message", () => {
+    const msg = teamMessage(
+      ev({ date: "2026-11-20", endDate: "2026-11-22", setupDays: ["2026-11-20"] }),
+    );
+    expect(msg).toContain("Setup");
   });
 });
