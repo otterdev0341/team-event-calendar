@@ -1,6 +1,9 @@
 export type Role = "stage" | "exhibitor";
 export type TeamMember = { name: string; role: Role };
-export const ROLE_LABEL: Record<Role, string> = { stage: "Stage · Live translation", exhibitor: "Exhibitor · ออกบูธ" };
+export const ROLE_LABEL: Record<Role, string> = {
+  stage: "Stage · Live translation",
+  exhibitor: "Exhibitor · ออกบูธ",
+};
 export const ROLE_SHORT: Record<Role, string> = { stage: "Live", exhibitor: "Exhibitor" };
 
 export type EventType = "pay" | "sponsor";
@@ -9,7 +12,18 @@ export const TYPE_LABEL: Record<EventType, string> = { pay: "Pay", sponsor: "Spo
 /** Format a baht amount, e.g. 12500 -> "฿12,500". */
 export const baht = (n: number) => `฿${n.toLocaleString("th-TH", { maximumFractionDigits: 2 })}`;
 
-export const STATUSES = ["talking", "pitch", "demo", "deciding", "confirmed", "wait_qt", "qt_sent", "wait_bill", "paid", "cancelled"] as const;
+export const STATUSES = [
+  "talking",
+  "pitch",
+  "demo",
+  "deciding",
+  "confirmed",
+  "wait_qt",
+  "qt_sent",
+  "wait_bill",
+  "paid",
+  "cancelled",
+] as const;
 export type Status = (typeof STATUSES)[number];
 export const STATUS_LABEL: Record<Status, string> = {
   talking: "กำลังคุย",
@@ -30,7 +44,23 @@ export const emptyContact = (): Contact => ({ name: "", phone: "", line: "", ema
 export const hasContact = (c: Contact) => !!(c.name || c.phone || c.line || c.email);
 
 /** LINE ID → add-friend link. "@xxx" official accounts keep the @. */
-export const lineUrl = (id: string) => `https://line.me/R/ti/p/${encodeURIComponent(id.startsWith("@") ? id : "~" + id)}`;
+export const lineUrl = (id: string) =>
+  `https://line.me/R/ti/p/${encodeURIComponent(id.startsWith("@") ? id : "~" + id)}`;
+
+/** Compact amount for calendar badges: 950, 12.5k, 50k, 100k, 1.2M. */
+export function shortAmount(n: number): string {
+  const fmt = (x: number) => String(Math.round(x * 10) / 10);
+  const a = Math.abs(n);
+  if (a >= 1e6) return fmt(n / 1e6) + "M";
+  if (a >= 1e3) return fmt(n / 1e3) + "k";
+  return fmt(n);
+}
+
+/** Calendar badge: "SPR" for sponsor, short value for pay, null when pay has no value yet. */
+export function valueBadge(e: CalEvent): string | null {
+  if (e.type === "sponsor") return "SPR";
+  return e.value != null ? shortAmount(e.value) : null;
+}
 
 export function normalize(e: any): CalEvent {
   const type: EventType = e.type === "sponsor" ? "sponsor" : "pay";
@@ -56,7 +86,8 @@ export function eventsByDay(events: CalEvent[]) {
     const end = new Date((e.endDate && e.endDate >= e.date ? e.endDate : e.date) + "T00:00");
     const total = Math.round((+end - +start) / 864e5) + 1;
     for (let i = 0; i < total && i < 366; i++) {
-      const d = new Date(start); d.setDate(d.getDate() + i);
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
       (out[ymd(d)] ||= []).push({ e, day: i + 1, total });
     }
   }
@@ -107,7 +138,12 @@ export function monthSummary(events: CalEvent[], year: number, month: number) {
 }
 
 const thDate = (d: string) =>
-  new Date(d + "T00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "2-digit" });
+  new Date(d + "T00:00").toLocaleDateString("th-TH", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
 
 /** Date range label, e.g. "พ. 5 พ.ย. 69" or "พฤ. 12 พ.ย. 69 – ศ. 13 พ.ย. 69". */
 export const dateRange = (e: CalEvent) =>
@@ -144,9 +180,18 @@ export function matchesQuery(e: CalEvent, q: string): boolean {
   if (!needle) return true;
   const c = e.contact;
   return [
-    e.title, e.customer, e.location, e.details, e.qt, e.bl,
-    STATUS_LABEL[e.status], TYPE_LABEL[e.type],
-    c.name, c.phone, c.line, c.email,
+    e.title,
+    e.customer,
+    e.location,
+    e.details,
+    e.qt,
+    e.bl,
+    STATUS_LABEL[e.status],
+    TYPE_LABEL[e.type],
+    c.name,
+    c.phone,
+    c.line,
+    c.email,
     ...e.team.map((t) => t.name),
   ].some((v) => v && v.toLowerCase().includes(needle));
 }
@@ -182,6 +227,58 @@ export function decodeEvents(str: string): CalEvent[] {
 
 export const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** A multi-day event's bar within one week row. Columns are 0 (Mon) – 6 (Sun). */
+export type Segment = {
+  e: CalEvent;
+  start: number;
+  end: number;
+  lane: number;
+  /** The event started before this row / carries on after it. */
+  contLeft: boolean;
+  contRight: boolean;
+};
+
+/**
+ * Lay out multi-day events as bars across one week. `visible` marks the columns
+ * bars may use (the days of the viewed month, which are contiguous). Each bar
+ * gets the first free lane, so overlapping events stack instead of colliding.
+ */
+export function weekSegments(events: CalEvent[], days: Date[], visible: boolean[]) {
+  const keys = days.map(ymd);
+  const cols = keys.map((_, i) => i).filter((i) => visible[i]);
+  if (!cols.length) return { segs: [] as Segment[], lanes: 0 };
+  const first = keys[cols[0]!]!;
+  const last = keys[cols[cols.length - 1]!]!;
+  const raw: Omit<Segment, "lane">[] = [];
+  for (const e of events) {
+    const end = e.endDate && e.endDate > e.date ? e.endDate : null;
+    if (!end || end < first || e.date > last) continue;
+    const s = e.date > first ? e.date : first;
+    const t = end < last ? end : last;
+    raw.push({
+      e,
+      start: keys.indexOf(s),
+      end: keys.indexOf(t),
+      contLeft: e.date < s,
+      contRight: end > t,
+    });
+  }
+  raw.sort(
+    (a, b) =>
+      a.start - b.start || b.end - b.start - (a.end - a.start) || a.e.date.localeCompare(b.e.date),
+  );
+  const laneEnds: number[] = [];
+  const segs: Segment[] = raw.map((r) => {
+    let lane = laneEnds.findIndex((x) => x < r.start);
+    if (lane < 0) {
+      lane = laneEnds.length;
+      laneEnds.push(r.end);
+    } else laneEnds[lane] = r.end;
+    return { ...r, lane };
+  });
+  return { segs, lanes: laneEnds.length };
+}
 
 /** Weeks (Mon-first) covering the given month; null = outside month. */
 export function monthWeeks(year: number, month: number): (Date | null)[][] {

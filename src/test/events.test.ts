@@ -6,6 +6,9 @@ import {
   lineUrl,
   matchesQuery,
   monthSummary,
+  shortAmount,
+  valueBadge,
+  weekSegments,
   normalize,
   teamMessage,
 } from "@/lib/events";
@@ -62,7 +65,12 @@ describe("monthSummary", () => {
   });
 
   it("counts a cross-month event only in its start month", () => {
-    expect(monthSummary(events, 2026, 11)).toEqual({ total: 7000, payCount: 1, sponsorCount: 0, cancelledCount: 0 });
+    expect(monthSummary(events, 2026, 11)).toEqual({
+      total: 7000,
+      payCount: 1,
+      sponsorCount: 0,
+      cancelledCount: 0,
+    });
   });
 });
 
@@ -139,6 +147,64 @@ describe("cancelled & QT sent", () => {
       ev({ date: "2026-11-04", type: "pay", value: 5000, status: "cancelled" }),
       ev({ date: "2026-11-05", type: "sponsor", status: "cancelled" }),
     ];
-    expect(monthSummary(events, 2026, 10)).toEqual({ total: 10000, payCount: 1, sponsorCount: 0, cancelledCount: 2 });
+    expect(monthSummary(events, 2026, 10)).toEqual({
+      total: 10000,
+      payCount: 1,
+      sponsorCount: 0,
+      cancelledCount: 2,
+    });
+  });
+});
+
+describe("calendar badges", () => {
+  it("shortens amounts", () => {
+    expect([950, 12500, 50000, 100000, 1200000].map(shortAmount)).toEqual([
+      "950",
+      "12.5k",
+      "50k",
+      "100k",
+      "1.2M",
+    ]);
+  });
+
+  it("shows SPR for sponsor, short value for pay, nothing for pay without value", () => {
+    expect(valueBadge(ev({ date: "2026-11-01", type: "sponsor" }))).toBe("SPR");
+    expect(valueBadge(ev({ date: "2026-11-01", type: "pay", value: 50000 }))).toBe("50k");
+    expect(valueBadge(ev({ date: "2026-11-01", type: "pay" }))).toBeNull();
+  });
+});
+
+describe("weekSegments", () => {
+  // Week of Mon 9 – Sun 15 Nov 2026
+  const days = Array.from({ length: 7 }, (_, i) => new Date(2026, 10, 9 + i));
+  const all = days.map(() => true);
+
+  it("spans a multi-day event across its columns and skips single days", () => {
+    const { segs, lanes } = weekSegments(
+      [ev({ date: "2026-11-12", endDate: "2026-11-13" }), ev({ date: "2026-11-10" })],
+      days,
+      all,
+    );
+    expect(lanes).toBe(1);
+    expect(segs[0]).toMatchObject({ start: 3, end: 4, lane: 0, contLeft: false, contRight: false });
+  });
+
+  it("marks events that continue into the next / previous week", () => {
+    const { segs } = weekSegments([ev({ date: "2026-11-07", endDate: "2026-11-17" })], days, all);
+    expect(segs[0]).toMatchObject({ start: 0, end: 6, contLeft: true, contRight: true });
+  });
+
+  it("stacks overlapping events in separate lanes", () => {
+    const { segs, lanes } = weekSegments(
+      [
+        ev({ date: "2026-11-09", endDate: "2026-11-11" }),
+        ev({ date: "2026-11-10", endDate: "2026-11-12" }),
+        ev({ date: "2026-11-13", endDate: "2026-11-14" }),
+      ],
+      days,
+      all,
+    );
+    expect(lanes).toBe(2);
+    expect(segs.map((s) => s.lane)).toEqual([0, 1, 0]);
   });
 });

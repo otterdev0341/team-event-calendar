@@ -23,6 +23,7 @@ import {
 import {
   type CalEvent,
   type Role,
+  type Segment,
   type Status,
   ROLE_LABEL,
   ROLE_SHORT,
@@ -39,6 +40,8 @@ import {
   monthSummary,
   monthWeeks,
   teamMessage,
+  valueBadge,
+  weekSegments,
   ymd,
 } from "@/lib/events";
 
@@ -198,7 +201,9 @@ export function Calendar({
         <div className="flex gap-2 text-xs">
           <span className="type-chip-pay">Pay {sum.payCount} งาน</span>
           <span className="type-chip-sponsor">Sponsor {sum.sponsorCount} งาน</span>
-          {sum.cancelledCount > 0 && <span className="status-chip status-cancelled">ยกเลิก {sum.cancelledCount} งาน</span>}
+          {sum.cancelledCount > 0 && (
+            <span className="status-chip status-cancelled">ยกเลิก {sum.cancelledCount} งาน</span>
+          )}
         </div>
       </div>
 
@@ -264,44 +269,99 @@ export function Calendar({
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
-              {cells.map((d, i) => {
-                const key = ymd(d);
-                const inMonth = d.getMonth() === cur.m;
-                const evs = inMonth ? byDate[key] : undefined;
+            <div className="space-y-1.5">
+              {Array.from({ length: weekCount }, (_, wi) => {
+                const days = cells.slice(wi * 7, wi * 7 + 7);
+                const visible = days.map((d) => d.getMonth() === cur.m);
+                const { segs, lanes } = weekSegments(shown, days, visible);
+                const barCols = new Set(
+                  segs.flatMap((sg) =>
+                    Array.from({ length: sg.end - sg.start + 1 }, (_, k) => sg.start + k),
+                  ),
+                );
                 return (
                   <div
-                    key={key}
-                    className="cal-cell group"
-                    data-today={key === today}
-                    data-out={!inMonth}
-                    data-weekend={i % 7 >= 5}
-                    data-busy={!!evs}
+                    key={wi}
+                    className="grid grid-cols-7 gap-x-1.5 gap-y-1"
+                    style={{
+                      gridTemplateRows: ["auto", ...Array<string>(lanes).fill("auto"), "1fr"].join(
+                        " ",
+                      ),
+                    }}
                   >
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="cal-num">{d.getDate()}</span>
-                      {!readOnly && inMonth && (
-                        <button
-                          onClick={() => onAdd?.(key)}
-                          className="cal-add"
-                          aria-label={`เพิ่ม event วันที่ ${d.getDate()}`}
+                    {/* Day boxes: span every row so bars sit on top of them */}
+                    {days.map((d, c) => {
+                      const key = ymd(d);
+                      const inMonth = visible[c];
+                      const singles = inMonth
+                        ? (byDate[key] || []).filter((x) => x.total === 1)
+                        : [];
+                      return (
+                        <div
+                          key={key}
+                          className="cal-cell group relative"
+                          style={{ gridColumn: c + 1, gridRow: "1 / -1" }}
+                          data-today={key === today}
+                          data-out={!inMonth}
+                          data-weekend={c >= 5}
+                          data-busy={singles.length > 0 || barCols.has(c)}
                         >
-                          <Plus size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      {evs?.map(({ e, day, total }) => (
-                        <EventPill
-                          key={e.id}
-                          e={e}
-                          day={day}
-                          total={total}
-                          onOpen={openEvent}
-                          compact
-                        />
-                      ))}
-                    </div>
+                          <div className="flex h-6 items-center justify-between">
+                            <span className="cal-num">{d.getDate()}</span>
+                            {!readOnly && inMonth && (
+                              <button
+                                onClick={() => onAdd?.(key)}
+                                className="cal-add"
+                                aria-label={`เพิ่ม event วันที่ ${d.getDate()}`}
+                              >
+                                <Plus size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Row 1 keeps room for the date numbers */}
+                    <div
+                      className="pointer-events-none h-7"
+                      style={{ gridColumn: "1 / -1", gridRow: 1 }}
+                    />
+                    {/* Multi-day bars */}
+                    {segs.map((sg) => (
+                      <SpanBar
+                        key={sg.e.id}
+                        sg={sg}
+                        onOpen={openEvent}
+                        style={{
+                          gridColumn: `${sg.start + 1} / ${sg.end + 2}`,
+                          gridRow: sg.lane + 2,
+                        }}
+                      />
+                    ))}
+                    {/* Single-day events */}
+                    {days.map((d, c) => {
+                      const singles = visible[c]
+                        ? (byDate[ymd(d)] || []).filter((x) => x.total === 1)
+                        : [];
+                      return (
+                        <div
+                          key={"s" + c}
+                          className="relative min-h-16 space-y-1.5 px-1.5 pb-1.5"
+                          style={{ gridColumn: c + 1, gridRow: lanes + 2 }}
+                        >
+                          {singles.map(({ e }) => (
+                            <EventPill
+                              key={e.id}
+                              e={e}
+                              day={1}
+                              total={1}
+                              onOpen={openEvent}
+                              compact
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -404,14 +464,7 @@ function EventPill({
             {day}/{total}
           </span>
         )}
-        {!compact && (
-          <span className={e.type === "pay" ? "type-chip-pay" : "type-chip-sponsor"}>
-            {TYPE_LABEL[e.type]}
-          </span>
-        )}
-        {!compact && e.type === "pay" && e.value != null && (
-          <span className="text-xs font-semibold">{baht(e.value)}</span>
-        )}
+        <ValueBadge e={e} />
       </div>
       {!compact && e.location && (
         <div className="flex items-start gap-1 text-sm text-muted-foreground">
@@ -420,6 +473,99 @@ function EventPill({
         </div>
       )}
       <TeamLine e={e} compact={compact} />
+    </button>
+  );
+}
+
+/** "50k" for pay with a value, "SPR" for sponsor. */
+function ValueBadge({ e }: { e: CalEvent }) {
+  const v = valueBadge(e);
+  if (!v) return null;
+  return (
+    <span
+      className={e.type === "pay" ? "type-chip-pay tabular-nums" : "type-chip-sponsor"}
+      title={e.type === "pay" && e.value != null ? baht(e.value) : TYPE_LABEL[e.type]}
+    >
+      {v}
+    </span>
+  );
+}
+
+/** A multi-day event drawn across its days in one week row. */
+function SpanBar({
+  sg,
+  onOpen,
+  style,
+}: {
+  sg: Segment;
+  onOpen: (e: CalEvent) => void;
+  style: React.CSSProperties;
+}) {
+  const { e, contLeft, contRight } = sg;
+  const short = (d: string) =>
+    new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  const live = e.team.filter((t) => t.role === "stage");
+  const booth = e.team.filter((t) => t.role === "exhibitor");
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(e)}
+      style={style}
+      className={[
+        "relative z-[1] min-w-0 space-y-1 border border-border/70 bg-card px-2 py-1.5 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+        contLeft
+          ? "-ml-px rounded-l-none border-l-0"
+          : `ml-1.5 rounded-l-md border-l-4 ${STATUS_BAR[e.status]}`,
+        contRight ? "-mr-px rounded-r-none border-r-0" : "mr-1.5 rounded-r-md",
+        isActive(e) ? "" : "opacity-60",
+      ].join(" ")}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        {contLeft && <ChevronLeft size={13} className="shrink-0 text-muted-foreground" />}
+        <span
+          className={`truncate text-[13px] font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
+        >
+          {e.title || "Event"}
+        </span>
+        {e.customer && (
+          <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground">
+            · {e.customer}
+          </span>
+        )}
+        {contRight && <ChevronRight size={13} className="ml-auto shrink-0 text-muted-foreground" />}
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <ValueBadge e={e} />
+        <StatusChip status={e.status} />
+        <span className="day-chip">
+          {short(e.date)} – {short(e.endDate!)}
+        </span>
+        {(live.length > 0 || booth.length > 0) && (
+          <span className="mx-0.5 h-3 w-px bg-border" aria-hidden />
+        )}
+        {live.length > 0 && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {ROLE_SHORT.stage}
+          </span>
+        )}
+        {live.map((t) => (
+          <span key={"l" + t.name} className="team-chip">
+            {t.name}
+          </span>
+        ))}
+        {booth.length > 0 && (
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ${live.length ? "ml-1.5" : ""}`}
+          >
+            {ROLE_SHORT.exhibitor}
+          </span>
+        )}
+        {booth.map((t) => (
+          <span key={"b" + t.name} className="team-chip-alt">
+            {t.name}
+          </span>
+        ))}
+      </div>
     </button>
   );
 }
@@ -606,10 +752,16 @@ function EventTable({
             <tfoot className="border-t border-border bg-secondary/40 text-sm font-semibold">
               <tr>
                 <td colSpan={5} className="px-3 py-2">
-                  รวม Pay ({rows.filter((r) => r.type === "pay" && isActive(r)).length} งาน · ไม่รวมที่ยกเลิก)
+                  รวม Pay ({rows.filter((r) => r.type === "pay" && isActive(r)).length} งาน ·
+                  ไม่รวมที่ยกเลิก)
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                  {baht(rows.reduce((s, r) => s + (r.type === "pay" && isActive(r) ? r.value || 0 : 0), 0))}
+                  {baht(
+                    rows.reduce(
+                      (s, r) => s + (r.type === "pay" && isActive(r) ? r.value || 0 : 0),
+                      0,
+                    ),
+                  )}
                 </td>
                 <td colSpan={2} />
               </tr>
