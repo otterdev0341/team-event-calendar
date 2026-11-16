@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Backpack,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -26,6 +27,7 @@ import {
 import {
   type CalEvent,
   type Role,
+  type TeamMember,
   type Segment,
   type Status,
   ROLE_LABEL,
@@ -40,6 +42,10 @@ import {
   hasContact,
   isActive,
   isSetupDay,
+  worksOn,
+  hasPartialTeam,
+  rosterByDay,
+  daysShort,
   setupLabel,
   lineUrl,
   matchesQuery,
@@ -394,6 +400,7 @@ export function Calendar({
                           key={sg.e.id + ":" + pc.start}
                           sg={sg}
                           piece={pc}
+                          pieceDays={days.slice(pc.start, pc.end + 1).map(ymd)}
                           onOpen={openEvent}
                           style={{
                             gridColumn: `${pc.start + 1} / ${pc.end + 2}`,
@@ -466,9 +473,18 @@ function StatusChip({ status }: { status: Status }) {
 }
 
 /** Team names grouped by role, always visible on the collapsed card. */
-function TeamLine({ e, compact }: { e: CalEvent; compact?: boolean | undefined }) {
+function TeamLine({
+  e,
+  compact,
+  day,
+}: {
+  e: CalEvent;
+  compact?: boolean | undefined;
+  /** Only show people working this day (multi-day events). */
+  day?: string | undefined;
+}) {
   const rows = (["stage", "exhibitor"] as Role[])
-    .map((r) => ({ r, ppl: e.team.filter((t) => t.role === r) }))
+    .map((r) => ({ r, ppl: e.team.filter((t) => t.role === r && (!day || worksOn(t, day))) }))
     .filter((x) => x.ppl.length);
   if (!rows.length) return null;
   return (
@@ -543,7 +559,8 @@ function EventPill({
           <span className="truncate">{e.location}</span>
         </div>
       )}
-      <TeamLine e={e} compact={compact} />
+      <TeamLine e={e} compact={compact} day={total > 1 ? eventDays(e)[day - 1] : undefined} />
+      <GearLine e={e} />
     </button>
   );
 }
@@ -559,6 +576,21 @@ function ValueBadge({ e }: { e: CalEvent }) {
     >
       {v}
     </span>
+  );
+}
+
+/** Gear chips with a backpack icon; wraps so every item stays visible. */
+function GearLine({ e }: { e: CalEvent }) {
+  if (!e.gear.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <Backpack size={12} className="shrink-0 text-muted-foreground" aria-label="Gear" />
+      {e.gear.map((g, i) => (
+        <span key={i} className="gear-chip whitespace-nowrap">
+          {g}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -585,11 +617,14 @@ const STATUS_TINT: Record<Status, string> = {
 function SpanBar({
   sg,
   piece,
+  pieceDays,
   onOpen,
   style,
 }: {
   sg: Segment;
   piece: { start: number; end: number; setup: boolean };
+  /** The days (YYYY-MM-DD) this piece covers; only people working them are shown. */
+  pieceDays: string[];
   onOpen: (e: CalEvent) => void;
   style: React.CSSProperties;
 }) {
@@ -601,8 +636,16 @@ function SpanBar({
   const innerRight = piece.end !== sg.end;
   const short = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const live = e.team.filter((t) => t.role === "stage");
-  const booth = e.team.filter((t) => t.role === "exhibitor");
+  // Only people working at least one of this piece's days.
+  const here = e.team.filter((t) => pieceDays.some((d) => worksOn(t, d)));
+  const live = here.filter((t) => t.role === "stage");
+  const booth = here.filter((t) => t.role === "exhibitor");
+  /** Day numbers when someone works only part of this piece, e.g. "21, 22". */
+  const partial = (t: TeamMember) => {
+    if (!t.days) return "";
+    const mine = pieceDays.filter((d) => t.days!.includes(d));
+    return mine.length < pieceDays.length ? mine.map((d) => Number(d.slice(8))).join(", ") : "";
+  };
   const tip = [
     e.title || "Event",
     e.customer,
@@ -697,6 +740,9 @@ function SpanBar({
               {live.map((t) => (
                 <span key={t.name} className="team-chip whitespace-nowrap">
                   {t.name}
+                  {partial(t) && (
+                    <span className="ml-1 font-normal opacity-70">· {partial(t)}</span>
+                  )}
                 </span>
               ))}
             </span>
@@ -709,12 +755,16 @@ function SpanBar({
               {booth.map((t) => (
                 <span key={t.name} className="team-chip-alt whitespace-nowrap">
                   {t.name}
+                  {partial(t) && (
+                    <span className="ml-1 font-normal opacity-70">· {partial(t)}</span>
+                  )}
                 </span>
               ))}
             </span>
           )}
         </div>
       )}
+      <GearLine e={e} />
     </button>
   );
 }
@@ -802,7 +852,7 @@ function EventTable({
   const teamOf = (e: CalEvent, r: Role) =>
     e.team
       .filter((t) => t.role === r)
-      .map((t) => t.name)
+      .map((t) => (t.days ? `${t.name} (${daysShort(t.days)})` : t.name))
       .join(", ");
   return (
     <div className="space-y-2">
@@ -1045,12 +1095,74 @@ function EventDetails({
               {ppl.map((t) => (
                 <span key={t.name} className={r === "stage" ? "team-chip" : "team-chip-alt"}>
                   {t.name}
+                  {t.days && (
+                    <span className="ml-1 font-normal opacity-70">· {daysShort(t.days)}</span>
+                  )}
                 </span>
               ))}
             </div>
           </div>
         );
       })}
+
+      {hasPartialTeam(e) && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <CalendarDays size={12} className="text-primary" />
+            Day by day
+          </div>
+          <div className="divide-y divide-border rounded-md border border-border text-xs">
+            {rosterByDay(e).map((d) => (
+              <div key={d.day} className="flex items-start gap-2 px-2.5 py-1.5">
+                <span className="w-20 shrink-0 font-medium">
+                  {new Date(d.day + "T00:00").toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+                <div className="flex flex-1 flex-wrap items-center gap-1">
+                  {d.setup && (
+                    <span className="setup-chip">
+                      <Wrench size={10} />
+                      Setup
+                    </span>
+                  )}
+                  {d.stage.map((n) => (
+                    <span key={"s" + n} className="team-chip">
+                      {n}
+                    </span>
+                  ))}
+                  {d.exhibitor.map((n) => (
+                    <span key={"x" + n} className="team-chip-alt">
+                      {n}
+                    </span>
+                  ))}
+                  {!d.stage.length && !d.exhibitor.length && (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {e.gear.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <Backpack size={12} className="text-primary" />
+            Gear
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {e.gear.map((g, i) => (
+              <span key={i} className="gear-chip">
+                {g}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {hasContact(c) && (
         <div className="space-y-1.5 rounded-md bg-secondary/60 p-2.5 text-sm">

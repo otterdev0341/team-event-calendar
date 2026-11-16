@@ -11,6 +11,7 @@ import {
   valueBadge,
   weekSegments,
   normalize,
+  rosterByDay,
   teamMessage,
 } from "@/lib/events";
 
@@ -254,5 +255,50 @@ describe("setup days & colour", () => {
       ev({ date: "2026-11-20", endDate: "2026-11-22", setupDays: ["2026-11-20"] }),
     );
     expect(msg).toContain("Setup");
+  });
+});
+
+describe("per-person days & gear", () => {
+  const base = {
+    date: "2026-11-20",
+    endDate: "2026-11-22",
+    setupDays: ["2026-11-20"],
+  };
+
+  it("keeps a person's days inside the range; every day means unset", () => {
+    const e = ev({
+      ...base,
+      team: [
+        { name: "Setup guy", role: "exhibitor", days: ["2026-11-20", "2026-11-30"] },
+        { name: "All days", role: "stage", days: ["2026-11-20", "2026-11-21", "2026-11-22"] },
+        { name: "Plain", role: "stage" },
+      ],
+    });
+    expect(e.team.map((t) => t.days)).toEqual([["2026-11-20"], undefined, undefined]);
+  });
+
+  it("builds a day-by-day roster", () => {
+    const e = ev({
+      ...base,
+      team: [
+        { name: "Kob", role: "exhibitor", days: ["2026-11-20"] },
+        { name: "Ton", role: "stage", days: ["2026-11-21", "2026-11-22"] },
+      ],
+    });
+    expect(rosterByDay(e)).toEqual([
+      { day: "2026-11-20", setup: true, stage: [], exhibitor: ["Kob"] },
+      { day: "2026-11-21", setup: false, stage: ["Ton"], exhibitor: [] },
+      { day: "2026-11-22", setup: false, stage: ["Ton"], exhibitor: [] },
+    ]);
+    const msg = teamMessage(e);
+    expect(msg).toContain("Day by day");
+    expect(msg).toContain("Kob (20 Nov)");
+  });
+
+  it("parses comma-separated gear", () => {
+    const e = ev({ date: "2026-11-20", gear: "Mic x2, Headset x10, , - ,Receiver" });
+    expect(e.gear).toEqual(["Mic x2", "Headset x10", "Receiver"]);
+    expect(teamMessage(e)).toContain("Gear: Mic x2, Headset x10, Receiver");
+    expect(matchesQuery(e, "headset")).toBe(true);
   });
 });

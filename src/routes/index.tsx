@@ -19,25 +19,36 @@ export const Route = createFileRoute("/")({
 });
 
 const names = (e: CalEvent, r: Role) => e.team.filter((t) => t.role === r).map((t) => t.name).join(", ");
-const blank = (date: string): CalEvent => ({ id: crypto.randomUUID(), date, title: "", location: "", details: "", team: [], url: "", type: "pay", qt: "", bl: "", customer: "", status: "talking", contact: emptyContact() });
+const blank = (date: string): CalEvent => ({ id: crypto.randomUUID(), date, title: "", location: "", details: "", team: [], url: "", type: "pay", qt: "", bl: "", customer: "", status: "talking", contact: emptyContact(), gear: [] });
 
 function Index() {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [editing, setEditing] = useState<CalEvent | null>(null);
   const [teamText, setTeamText] = useState<Record<Role, string>>({ stage: "", exhibitor: "" });
+  // Days each person works, keyed "role:name"; missing = every day.
+  const [teamDays, setTeamDays] = useState<Record<string, string[] | undefined>>({});
+  const [gearText, setGearText] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => { setEvents(loadEvents()); setReady(true); }, []);
   useEffect(() => { if (ready) saveEvents(events); }, [events, ready]);
 
-  const open = (e: CalEvent) => { setEditing(e); setTeamText({ stage: names(e, "stage"), exhibitor: names(e, "exhibitor") }); };
+  const open = (e: CalEvent) => {
+    setEditing(e);
+    setTeamText({ stage: names(e, "stage"), exhibitor: names(e, "exhibitor") });
+    setTeamDays(Object.fromEntries(e.team.map((t) => [`${t.role}:${t.name}`, t.days])));
+    setGearText(e.gear.join(", "));
+  };
+  const people = (["stage", "exhibitor"] as Role[]).flatMap((r) =>
+    teamText[r].split(",").map((s) => s.trim()).filter(isRealName).map((name) => ({ name, role: r, key: `${r}:${name}` })),
+  );
   const setContact = (c: Partial<Contact>) => editing && setEditing({ ...editing, contact: { ...editing.contact, ...c } });
   const save = () => {
     if (!editing) return;
-    const split = (r: Role) => teamText[r].split(",").map((s) => s.trim()).filter(isRealName).map((name) => ({ name, role: r }));
-    // normalize drops setup days outside the date range and invalid colours
-    const ev: CalEvent = normalize({ ...editing, team: [...split("stage"), ...split("exhibitor")] });
+    const team = people.map(({ name, role, key }) => ({ name, role, days: teamDays[key] }));
+    // normalize drops setup/person days outside the date range, splits gear and checks colours
+    const ev: CalEvent = normalize({ ...editing, team, gear: gearText });
     if (ev.type === "sponsor") { delete ev.value; delete ev.qt; delete ev.bl; }
     setEvents((p) => [...p.filter((x) => x.id !== ev.id), ev]);
     setEditing(null);
@@ -184,6 +195,18 @@ function Index() {
             {(["stage", "exhibitor"] as Role[]).map((r) => (
               <Field key={r} label={`Team ${ROLE_LABEL[r]} (comma-separated)`}><input className="inp" placeholder="e.g. Ton, Bee, Nan" value={teamText[r]} onChange={(e) => setTeamText({ ...teamText, [r]: e.target.value })} /></Field>
             ))}
+            {editing.endDate && editing.endDate > editing.date && people.length > 0 && (
+              <DayAssign
+                days={eventDays(editing)}
+                setupDays={editing.setupDays || []}
+                people={people}
+                value={teamDays}
+                onChange={setTeamDays}
+              />
+            )}
+            <Field label="Gear (comma-separated)">
+              <input className="inp" placeholder="e.g. Mic x2, Headset x10, Receiver x50" value={gearText} onChange={(e) => setGearText(e.target.value)} />
+            </Field>
             <fieldset className="space-y-3 rounded-lg border border-border p-3">
               <legend className="px-1 text-xs font-medium text-muted-foreground">Client contact (any of these)</legend>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -207,4 +230,81 @@ function Index() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block space-y-1"><span className="text-xs font-medium text-muted-foreground">{label}</span>{children}</label>;
+}
+
+/** Grid of people × days: who works which day of a multi-day event. */
+function DayAssign({
+  days,
+  setupDays,
+  people,
+  value,
+  onChange,
+}: {
+  days: string[];
+  setupDays: string[];
+  people: { name: string; role: Role; key: string }[];
+  value: Record<string, string[] | undefined>;
+  onChange: (v: Record<string, string[] | undefined>) => void;
+}) {
+  const showDays = days.filter((d) => !setupDays.includes(d));
+  const set = (key: string, next: string[]) =>
+    // Never leave someone with zero days; "every day" is stored as unset.
+    next.length === 0 ? undefined : onChange({ ...value, [key]: next.length === days.length ? undefined : days.filter((d) => next.includes(d)) });
+  const label = (d: string) => new Date(d + "T00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+  return (
+    <Field label="Who works which day — tap to toggle">
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-xs">
+          <thead className="bg-secondary/60 text-muted-foreground">
+            <tr>
+              <th className="px-2 py-1.5 text-left font-medium">Person</th>
+              {days.map((d) => (
+                <th key={d} className="px-1 py-1.5 text-center font-medium whitespace-nowrap">
+                  {setupDays.includes(d) && <Wrench size={10} className="mr-0.5 inline" />}
+                  {label(d)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p) => {
+              const mine = value[p.key] ?? days;
+              return (
+                <tr key={p.key} className="border-t border-border">
+                  <td className="px-2 py-1.5">
+                    <span className={`whitespace-nowrap ${p.role === "stage" ? "team-chip" : "team-chip-alt"}`}>{p.name}</span>
+                    <div className="mt-1 flex gap-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                      <button type="button" className="hover:text-foreground hover:underline" onClick={() => set(p.key, days)}>All</button>
+                      {setupDays.length > 0 && showDays.length > 0 && (
+                        <>
+                          ·<button type="button" className="hover:text-foreground hover:underline" onClick={() => set(p.key, setupDays.filter((d) => days.includes(d)))}>Setup only</button>
+                          ·<button type="button" className="hover:text-foreground hover:underline" onClick={() => set(p.key, showDays)}>Show only</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                  {days.map((d) => {
+                    const on = mine.includes(d);
+                    return (
+                      <td key={d} className="px-1 py-1 text-center">
+                        <button
+                          type="button"
+                          aria-pressed={on}
+                          aria-label={`${p.name} ${label(d)}`}
+                          onClick={() => set(p.key, on ? mine.filter((x) => x !== d) : [...mine, d])}
+                          className={`grid h-7 w-7 place-items-center rounded-md border ${on ? (setupDays.includes(d) ? "border-zinc-800 bg-zinc-800 text-white" : "border-primary bg-primary text-primary-foreground") : "border-input bg-background text-transparent hover:bg-secondary"}`}
+                        >
+                          <Check size={14} />
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Field>
+  );
 }

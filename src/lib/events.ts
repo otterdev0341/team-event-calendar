@@ -1,5 +1,10 @@
 export type Role = "stage" | "exhibitor";
-export type TeamMember = { name: string; role: Role };
+export type TeamMember = {
+  name: string;
+  role: Role;
+  /** Days (YYYY-MM-DD) this person works on a multi-day event. Unset = every day. */
+  days?: string[] | undefined;
+};
 export const ROLE_LABEL: Record<Role, string> = {
   stage: "Stage · Live translation",
   exhibitor: "Exhibitor · Booth",
@@ -86,9 +91,23 @@ export function normalize(e: any): CalEvent {
     color: typeof e.color === "string" && HEX.test(e.color) ? e.color.toLowerCase() : undefined,
     status: STATUSES.includes(e.status) ? e.status : "talking",
     contact: { ...emptyContact(), ...(e.contact || {}) },
+    gear: (Array.isArray(e.gear) ? e.gear : typeof e.gear === "string" ? e.gear.split(",") : [])
+      .map((g: unknown) => String(g).trim())
+      .filter(isRealName),
     team: (e.team || [])
       .map((t: any) => (typeof t === "string" ? { name: t, role: "stage" } : t))
-      .filter((t: TeamMember) => isRealName(t.name)),
+      .filter((t: TeamMember) => isRealName(t.name))
+      .map((t: TeamMember) => {
+        const all = eventDays(e);
+        const days =
+          all.length > 1 && Array.isArray(t.days) ? all.filter((d) => t.days!.includes(d)) : [];
+        // Every day (or none picked) is stored as "unset" = works the whole event.
+        return {
+          name: t.name,
+          role: t.role,
+          days: days.length && days.length < all.length ? days : undefined,
+        };
+      }),
   };
 }
 
@@ -132,6 +151,8 @@ export type CalEvent = {
   setupDays?: string[] | undefined;
   /** Optional background colour (#rrggbb). Unset = colour follows status. */
   color?: string | undefined;
+  /** Equipment to bring, entered comma-separated. */
+  gear: string[];
 };
 
 /** Preset event colours offered in the form (plus a free colour picker). */
@@ -153,6 +174,34 @@ export function eventDays(e: Pick<CalEvent, "date" | "endDate">): string[] {
 }
 
 export const isSetupDay = (e: CalEvent, day: string) => !!e.setupDays?.includes(day);
+
+/** Does this person work on `day`? */
+export const worksOn = (t: TeamMember, day: string) => !t.days || t.days.includes(day);
+
+/** True when anyone on the team works only some of the days. */
+export const hasPartialTeam = (e: CalEvent) => e.team.some((t) => !!t.days);
+
+/** Short day list for a person, e.g. "20, 21 Nov" or "" when they work every day. */
+export const daysShort = (days: string[] | undefined) => {
+  if (!days?.length) return "";
+  const parts = days.map((d) => new Date(d + "T00:00"));
+  const last = parts[parts.length - 1]!;
+  return (
+    parts.map((d) => d.getDate()).join(", ") +
+    " " +
+    last.toLocaleDateString("en-GB", { month: "short" })
+  );
+};
+
+/** Day-by-day roster for a multi-day event. */
+export function rosterByDay(e: CalEvent) {
+  return eventDays(e).map((day) => ({
+    day,
+    setup: isSetupDay(e, day),
+    stage: e.team.filter((t) => t.role === "stage" && worksOn(t, day)).map((t) => t.name),
+    exhibitor: e.team.filter((t) => t.role === "exhibitor" && worksOn(t, day)).map((t) => t.name),
+  }));
+}
 
 /** "20 Nov, 21 Nov" for the setup days, or "" when there are none. */
 export const setupLabel = (e: CalEvent) =>
@@ -205,9 +254,24 @@ export function teamMessage(e: CalEvent): string {
   if (e.setupDays?.length) lines.push(`🔧 Setup: ${setupLabel(e)}`);
   if (e.location) lines.push(`📍 ${e.location}`);
   for (const r of ["stage", "exhibitor"] as Role[]) {
-    const ppl = e.team.filter((t) => t.role === r).map((t) => t.name);
+    const ppl = e.team
+      .filter((t) => t.role === r)
+      .map((t) => (t.days ? `${t.name} (${daysShort(t.days)})` : t.name));
     if (ppl.length) lines.push(`👥 ${ROLE_LABEL[r]}: ${ppl.join(", ")}`);
   }
+  if (hasPartialTeam(e)) {
+    lines.push("", "🗓 Day by day");
+    for (const d of rosterByDay(e)) {
+      const label = new Date(d.day + "T00:00").toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+      const who = [...d.stage, ...d.exhibitor];
+      lines.push(`${label}${d.setup ? " (Setup)" : ""}: ${who.length ? who.join(", ") : "—"}`);
+    }
+  }
+  if (e.gear.length) lines.push("", `🎒 Gear: ${e.gear.join(", ")}`);
   if (e.details) lines.push("", e.details);
   const c = e.contact;
   if (hasContact(c)) {
@@ -240,6 +304,7 @@ export function matchesQuery(e: CalEvent, q: string): boolean {
     c.line,
     c.email,
     ...e.team.map((t) => t.name),
+    ...e.gear,
   ].some((v) => v && v.toLowerCase().includes(needle));
 }
 

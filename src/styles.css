@@ -198,6 +198,7 @@
   .seg > button[aria-pressed="true"] { @apply bg-primary text-primary-foreground; }
   .setup-chip { @apply inline-flex items-center gap-1 rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white; }
   .setup-stripes { background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.55) 0 6px, transparent 6px 12px); }
+  .gear-chip { @apply inline-block rounded border border-border/80 bg-white/80 px-1.5 py-0.5 text-[11px] font-medium text-foreground; }
   .btn-primary { @apply inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow hover:opacity-90; }
   .inp { @apply w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40; }
 }
