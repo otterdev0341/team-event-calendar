@@ -274,15 +274,10 @@ export function Calendar({
                 const days = cells.slice(wi * 7, wi * 7 + 7);
                 const visible = days.map((d) => d.getMonth() === cur.m);
                 const { segs, lanes } = weekSegments(shown, days, visible);
-                const barCols = new Set(
-                  segs.flatMap((sg) =>
-                    Array.from({ length: sg.end - sg.start + 1 }, (_, k) => sg.start + k),
-                  ),
-                );
                 return (
                   <div
                     key={wi}
-                    className="grid grid-cols-7 gap-x-1.5 gap-y-1"
+                    className="grid grid-cols-7 gap-x-1.5 gap-y-0.5"
                     style={{
                       gridTemplateRows: ["auto", ...Array<string>(lanes).fill("auto"), "1fr"].join(
                         " ",
@@ -304,7 +299,7 @@ export function Calendar({
                           data-today={key === today}
                           data-out={!inMonth}
                           data-weekend={c >= 5}
-                          data-busy={singles.length > 0 || barCols.has(c)}
+                          data-busy={singles.length > 0}
                         >
                           <div className="flex h-6 items-center justify-between">
                             <span className="cal-num">{d.getDate()}</span>
@@ -491,7 +486,24 @@ function ValueBadge({ e }: { e: CalEvent }) {
   );
 }
 
-/** A multi-day event drawn across its days in one week row. */
+/** Light background per status for the slim multi-day bars. */
+const STATUS_TINT: Record<Status, string> = {
+  talking: "bg-slate-200/70",
+  pitch: "bg-sky-100",
+  demo: "bg-violet-100",
+  deciding: "bg-amber-100",
+  confirmed: "bg-teal-100",
+  wait_qt: "bg-orange-100",
+  qt_sent: "bg-indigo-100",
+  wait_bill: "bg-rose-100",
+  paid: "bg-emerald-100",
+  cancelled: "bg-zinc-200/70",
+};
+
+/**
+ * A multi-day event as one slim bar across its days in a week row (Zoho/Google style).
+ * A segment continuing from the previous week starts with ‹ and the start date.
+ */
 function SpanBar({
   sg,
   onOpen,
@@ -504,68 +516,62 @@ function SpanBar({
   const { e, contLeft, contRight } = sg;
   const short = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-  const live = e.team.filter((t) => t.role === "stage");
-  const booth = e.team.filter((t) => t.role === "exhibitor");
+  const names = (r: Role) =>
+    e.team
+      .filter((t) => t.role === r)
+      .map((t) => t.name)
+      .join(", ");
+  const live = names("stage");
+  const booth = names("exhibitor");
+  const team = [live && `${ROLE_SHORT.stage} ${live}`, booth && `${ROLE_SHORT.exhibitor} ${booth}`]
+    .filter(Boolean)
+    .join(" · ");
+  const tip = [
+    e.title || "Event",
+    e.customer,
+    `${dateRange(e)} · ${STATUS_LABEL[e.status]}`,
+    e.type === "pay" && e.value != null ? baht(e.value) : TYPE_LABEL[e.type],
+    team,
+  ]
+    .filter(Boolean)
+    .join("\n");
   return (
     <button
       type="button"
       onClick={() => onOpen(e)}
       style={style}
+      title={tip}
       className={[
-        "relative z-[1] min-w-0 space-y-1 border border-border/70 bg-card px-2 py-1.5 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-        contLeft
-          ? "-ml-px rounded-l-none border-l-0"
-          : `ml-1.5 rounded-l-md border-l-4 ${STATUS_BAR[e.status]}`,
-        contRight ? "-mr-px rounded-r-none border-r-0" : "mr-1.5 rounded-r-md",
+        "relative z-[1] flex h-7 min-w-0 items-center gap-1.5 px-2 text-left text-[13px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+        STATUS_TINT[e.status],
+        contLeft ? "-ml-px rounded-l-none" : `ml-1.5 rounded-l border-l-4 ${STATUS_BAR[e.status]}`,
+        contRight ? "-mr-px rounded-r-none" : "mr-1.5 rounded-r",
         isActive(e) ? "" : "opacity-60",
       ].join(" ")}
     >
-      <div className="flex min-w-0 items-center gap-1.5">
-        {contLeft && <ChevronLeft size={13} className="shrink-0 text-muted-foreground" />}
-        <span
-          className={`truncate text-[13px] font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
-        >
-          {e.title || "Event"}
+      {contLeft && (
+        <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+          <ChevronLeft size={13} />
+          {short(e.date)}
         </span>
-        {e.customer && (
-          <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground">
-            · {e.customer}
-          </span>
-        )}
-        {contRight && <ChevronRight size={13} className="ml-auto shrink-0 text-muted-foreground" />}
-      </div>
-      <div className="flex flex-wrap items-center gap-1">
+      )}
+      <span
+        className={`min-w-[3rem] shrink truncate font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
+      >
+        {e.title || "Event"}
+      </span>
+      {e.customer && (
+        <span className="min-w-0 shrink-[4] truncate text-xs text-muted-foreground">
+          {e.customer}
+        </span>
+      )}
+      {team && (
+        <span className="min-w-0 shrink-[3] truncate text-xs text-foreground/70">{team}</span>
+      )}
+      <span className="ml-auto flex shrink-0 items-center gap-1">
         <ValueBadge e={e} />
-        <StatusChip status={e.status} />
-        <span className="day-chip">
-          {short(e.date)} – {short(e.endDate!)}
-        </span>
-        {(live.length > 0 || booth.length > 0) && (
-          <span className="mx-0.5 h-3 w-px bg-border" aria-hidden />
-        )}
-        {live.length > 0 && (
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {ROLE_SHORT.stage}
-          </span>
-        )}
-        {live.map((t) => (
-          <span key={"l" + t.name} className="team-chip">
-            {t.name}
-          </span>
-        ))}
-        {booth.length > 0 && (
-          <span
-            className={`text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ${live.length ? "ml-1.5" : ""}`}
-          >
-            {ROLE_SHORT.exhibitor}
-          </span>
-        )}
-        {booth.map((t) => (
-          <span key={"b" + t.name} className="team-chip-alt">
-            {t.name}
-          </span>
-        ))}
-      </div>
+        {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
+      </span>
     </button>
   );
 }

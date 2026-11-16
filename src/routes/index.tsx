@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Share2, Trash2, X } from "lucide-react";
 import { Calendar } from "@/components/Calendar";
-import { type CalEvent, type Contact, type EventType, type Role, type Status, ROLE_LABEL, STATUSES, STATUS_LABEL, TYPE_LABEL, emptyContact, encodeEvents, loadEvents, saveEvents } from "@/lib/events";
+import { type CalEvent, type Contact, type EventType, type Role, type Status, ROLE_LABEL, STATUSES, STATUS_LABEL, TYPE_LABEL, emptyContact, encodeEvents, isRealName, loadEvents, saveEvents } from "@/lib/events";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,7 +35,7 @@ function Index() {
   const setContact = (c: Partial<Contact>) => editing && setEditing({ ...editing, contact: { ...editing.contact, ...c } });
   const save = () => {
     if (!editing) return;
-    const split = (r: Role) => teamText[r].split(",").map((s) => s.trim()).filter(Boolean).map((name) => ({ name, role: r }));
+    const split = (r: Role) => teamText[r].split(",").map((s) => s.trim()).filter(isRealName).map((name) => ({ name, role: r }));
     const ev: CalEvent = { ...editing, team: [...split("stage"), ...split("exhibitor")] };
     if (ev.type === "sponsor") { delete ev.value; delete ev.qt; delete ev.bl; }
     setEvents((p) => [...p.filter((x) => x.id !== ev.id), ev]);

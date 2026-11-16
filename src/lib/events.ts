@@ -38,6 +38,9 @@ export const STATUS_LABEL: Record<Status, string> = {
   cancelled: "ยกเลิก",
 };
 
+/** "-", "–" or blank mean "nobody yet", not a person called "-". */
+export const isRealName = (s: string) => !/^[\s\-–—_.]*$/.test(s || "");
+
 /** Customer contact. All fields optional free text. */
 export type Contact = { name: string; phone: string; line: string; email: string };
 export const emptyContact = (): Contact => ({ name: "", phone: "", line: "", email: "" });
@@ -74,7 +77,9 @@ export function normalize(e: any): CalEvent {
     customer: e.customer || "",
     status: STATUSES.includes(e.status) ? e.status : "talking",
     contact: { ...emptyContact(), ...(e.contact || {}) },
-    team: (e.team || []).map((t: any) => (typeof t === "string" ? { name: t, role: "stage" } : t)),
+    team: (e.team || [])
+      .map((t: any) => (typeof t === "string" ? { name: t, role: "stage" } : t))
+      .filter((t: TeamMember) => isRealName(t.name)),
   };
 }
 

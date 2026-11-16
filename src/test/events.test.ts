@@ -208,3 +208,17 @@ describe("weekSegments", () => {
     expect(segs.map((s) => s.lane)).toEqual([0, 1, 0]);
   });
 });
+
+describe("team placeholders", () => {
+  it('drops "-" style placeholders from the team', () => {
+    const e = ev({
+      date: "2026-11-20",
+      team: [
+        { name: "TN ฟอร์ด", role: "stage" },
+        { name: "-", role: "exhibitor" },
+        { name: " – ", role: "exhibitor" },
+      ],
+    });
+    expect(e.team).toEqual([{ name: "TN ฟอร์ด", role: "stage" }]);
+  });
+});
