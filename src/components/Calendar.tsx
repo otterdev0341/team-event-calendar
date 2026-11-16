@@ -1,10 +1,9 @@
-import { Fragment, useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  CalendarDays,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
   FileText,
   Link2,
   Mail,
@@ -26,6 +25,7 @@ import {
   type Role,
   type Status,
   ROLE_LABEL,
+  ROLE_SHORT,
   STATUSES,
   STATUS_LABEL,
   TYPE_LABEL,
@@ -43,6 +43,17 @@ import {
 
 const TH_DAYS = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
 
+/** Left accent colour per status, so the pipeline stage reads at a glance. */
+const STATUS_BAR: Record<Status, string> = {
+  talking: "border-l-slate-400",
+  pitch: "border-l-sky-500",
+  demo: "border-l-violet-500",
+  deciding: "border-l-amber-500",
+  wait_qt: "border-l-orange-500",
+  wait_bill: "border-l-rose-500",
+  paid: "border-l-emerald-600",
+};
+
 export function Calendar({
   events,
   readOnly,
@@ -59,9 +70,11 @@ export function Calendar({
   const [view, setView] = useState<"calendar" | "table">("calendar");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<Status | "">("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = events.find((e) => e.id === selectedId) || null;
+
   const filtering = !!query.trim() || !!status;
   const shown = events.filter((e) => matchesQuery(e, query) && (!status || e.status === status));
-  const weeks = monthWeeks(cur.y, cur.m);
   const byDate = eventsByDay(shown);
   const shift = (d: number) => {
     const n = new Date(cur.y, cur.m + d, 1);
@@ -73,14 +86,24 @@ export function Calendar({
   });
   const today = ymd(now);
   const sum = monthSummary(shown, cur.y, cur.m);
+  const isThisMonth = cur.y === now.getFullYear() && cur.m === now.getMonth();
+
+  // Full Mon-first grid including the faded days of the neighbouring months.
+  const weekCount = monthWeeks(cur.y, cur.m).length;
+  const lead = (new Date(cur.y, cur.m, 1).getDay() + 6) % 7;
+  const cells = Array.from(
+    { length: weekCount * 7 },
+    (_, i) => new Date(cur.y, cur.m, 1 - lead + i),
+  );
+  const monthDays = cells.filter((d) => d.getMonth() === cur.m);
+  const agendaDays = monthDays.filter((d) => byDate[ymd(d)]);
+
   const monthPrefix = `${cur.y}-${String(cur.m + 1).padStart(2, "0")}-`;
   // Table: the viewed month, or every match across months while searching.
   const tableRows = (
     query.trim() ? shown : shown.filter((e) => e.date.startsWith(monthPrefix))
   ).sort((a, b) => a.date.localeCompare(b.date));
-  const isThisMonth = cur.y === now.getFullYear() && cur.m === now.getMonth();
-  const monthDays = weeks.flat().filter((d): d is Date => !!d);
-  const agendaDays = monthDays.filter((d) => byDate[ymd(d)]);
+  const openEvent = (e: CalEvent) => setSelectedId(e.id);
 
   return (
     <div>
@@ -175,63 +198,114 @@ export function Calendar({
       </div>
 
       {view === "table" && (
-        <EventTable
-          rows={tableRows}
-          allMonths={!!query.trim()}
-          readOnly={readOnly}
-          onEdit={onEdit}
-        />
+        <EventTable rows={tableRows} allMonths={!!query.trim()} onOpen={openEvent} />
       )}
 
-      {/* Mobile: agenda list of days that have events */}
-      <div className={view === "calendar" ? "space-y-5 md:hidden" : "hidden"}>
-        {agendaDays.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            {filtering ? "ไม่พบ event ที่ตรงกับที่ค้นหาในเดือนนี้" : "ยังไม่มี event ในเดือนนี้"}
-          </p>
-        )}
-        {agendaDays.map((d) => {
-          const key = ymd(d);
-          return (
-            <section key={key}>
-              <div className="mb-2 flex items-center justify-between">
-                <h3
-                  className={`text-sm font-semibold ${key === today ? "text-primary" : "text-foreground"}`}
+      {view === "calendar" && (
+        <>
+          {/* Mobile: agenda list of days that have events */}
+          <div className="space-y-5 md:hidden">
+            {agendaDays.length === 0 && (
+              <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {filtering
+                  ? "ไม่พบ event ที่ตรงกับที่ค้นหาในเดือนนี้"
+                  : "ยังไม่มี event ในเดือนนี้"}
+              </p>
+            )}
+            {agendaDays.map((d) => {
+              const key = ymd(d);
+              return (
+                <section key={key}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3
+                      className={`text-sm font-semibold ${key === today ? "text-primary" : "text-foreground"}`}
+                    >
+                      {d.toLocaleDateString("th-TH", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                      {key === today && <span className="ml-2 day-chip">วันนี้</span>}
+                    </h3>
+                    {!readOnly && (
+                      <button
+                        onClick={() => onAdd?.(key)}
+                        className="cal-nav h-8 min-w-8"
+                        aria-label="เพิ่ม event วันนี้"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {byDate[key]!.map(({ e, day, total }) => (
+                      <EventPill key={e.id} e={e} day={day} total={total} onOpen={openEvent} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+
+          {/* Desktop / tablet: month grid, 7 equal columns so dates always line up */}
+          <div className="hidden md:block">
+            <div className="mb-1 grid grid-cols-7 gap-1.5">
+              {TH_DAYS.map((d, i) => (
+                <div
+                  key={d}
+                  className={`py-1 text-center text-xs font-medium uppercase tracking-widest ${i >= 5 ? "text-primary/70" : "text-muted-foreground"}`}
                 >
-                  {d.toLocaleDateString("th-TH", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "short",
-                  })}
-                  {key === today && <span className="ml-2 day-chip">วันนี้</span>}
-                </h3>
-                {!readOnly && (
-                  <button
-                    onClick={() => onAdd?.(key)}
-                    className="cal-add opacity-100"
-                    aria-label="เพิ่ม event วันนี้"
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {cells.map((d, i) => {
+                const key = ymd(d);
+                const inMonth = d.getMonth() === cur.m;
+                const evs = inMonth ? byDate[key] : undefined;
+                return (
+                  <div
+                    key={key}
+                    className="cal-cell group"
+                    data-today={key === today}
+                    data-out={!inMonth}
+                    data-weekend={i % 7 >= 5}
+                    data-busy={!!evs}
                   >
-                    <Plus size={16} />
-                  </button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {byDate[key]!.map(({ e, day, total }) => (
-                  <EventCard
-                    key={e.id}
-                    e={e}
-                    day={day}
-                    total={total}
-                    readOnly={readOnly}
-                    onEdit={onEdit}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-      {!readOnly && (
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="cal-num">{d.getDate()}</span>
+                      {!readOnly && inMonth && (
+                        <button
+                          onClick={() => onAdd?.(key)}
+                          className="cal-add"
+                          aria-label={`เพิ่ม event วันที่ ${d.getDate()}`}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {evs?.map(({ e, day, total }) => (
+                        <EventPill
+                          key={e.id}
+                          e={e}
+                          day={day}
+                          total={total}
+                          onOpen={openEvent}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!readOnly && view === "calendar" && (
         <div className="md:hidden">
           <button
             onClick={() => onAdd?.(isThisMonth ? today : ymd(new Date(cur.y, cur.m, 1)))}
@@ -243,134 +317,16 @@ export function Calendar({
         </div>
       )}
 
-      {/* Desktop / tablet: month grid */}
-      <div className={view === "calendar" ? "hidden space-y-2 md:block" : "hidden"}>
-        {weeks.map((week, wi) => {
-          const cols = week
-            .map((d) => (d && byDate[ymd(d)] ? "minmax(0,4fr)" : "minmax(0,1fr)"))
-            .join(" ");
-          return (
-            <div key={wi}>
-              {wi === 0 && (
-                <div className="mb-1 grid gap-2" style={{ gridTemplateColumns: cols }}>
-                  {TH_DAYS.map((d) => (
-                    <div
-                      key={d}
-                      className="text-center text-xs uppercase tracking-widest text-muted-foreground"
-                    >
-                      {d}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="grid gap-2 transition-all" style={{ gridTemplateColumns: cols }}>
-                {week.map((d, di) => {
-                  if (!d) return <div key={di} />;
-                  const key = ymd(d);
-                  const evs = byDate[key];
-                  return (
-                    <div
-                      key={di}
-                      className={evs ? "cal-day-full" : "cal-day-empty"}
-                      data-today={key === today}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="cal-num">{d.getDate()}</span>
-                        {!readOnly && (
-                          <button
-                            onClick={() => onAdd?.(key)}
-                            className="cal-add"
-                            aria-label="เพิ่ม event"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {evs?.map(({ e, day, total }) => (
-                        <div key={e.id} className="mt-2">
-                          <EventCard
-                            e={e}
-                            day={day}
-                            total={total}
-                            readOnly={readOnly}
-                            onEdit={onEdit}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Compact card; click the header to expand details, contact and actions. */
-function EventCard({
-  e,
-  day,
-  total,
-  readOnly,
-  onEdit,
-}: {
-  e: CalEvent;
-  day: number;
-  total: number;
-  readOnly?: boolean | undefined;
-  onEdit?: ((e: CalEvent) => void) | undefined;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div
-      className={`rounded-md bg-card text-left shadow-sm ring-1 ring-border/60 ${open ? "ring-2 ring-primary/40" : ""}`}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex w-full items-start gap-2 p-3 text-left"
-      >
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="font-semibold leading-tight text-card-foreground">
-            {e.title || "Event"}
-          </div>
-          {e.customer && <div className="truncate text-sm text-foreground/80">{e.customer}</div>}
-          <div className="flex flex-wrap items-center gap-1">
-            <StatusChip status={e.status} />
-            <span className={e.type === "pay" ? "type-chip-pay" : "type-chip-sponsor"}>
-              {TYPE_LABEL[e.type]}
-            </span>
-            {total > 1 && (
-              <span className="day-chip">
-                วันที่ {day}/{total}
-              </span>
-            )}
-            {e.type === "pay" && e.value != null && (
-              <span className="text-xs font-semibold text-foreground">{baht(e.value)}</span>
-            )}
-          </div>
-          {e.location && (
-            <div className="flex items-start gap-1 text-sm text-muted-foreground">
-              <MapPin size={14} className="mt-0.5 shrink-0" />
-              <span className="truncate">{e.location}</span>
-            </div>
-          )}
-        </div>
-        <ChevronDown
-          size={16}
-          className={`mt-0.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+      {selected && (
+        <EventSheet
+          e={selected}
+          readOnly={readOnly}
+          onClose={() => setSelectedId(null)}
+          onEdit={(e) => {
+            setSelectedId(null);
+            onEdit?.(e);
+          }}
         />
-      </button>
-
-      {open && (
-        <div className="border-t border-border px-3 pb-3 pt-3">
-          <EventDetails e={e} readOnly={readOnly} onEdit={onEdit} />
-        </div>
       )}
     </div>
   );
@@ -380,25 +336,169 @@ function StatusChip({ status }: { status: Status }) {
   return <span className={`status-chip status-${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
-/** Table of events; click a row to expand its details underneath. */
+/** Team names grouped by role, always visible on the collapsed card. */
+function TeamLine({ e, compact }: { e: CalEvent; compact?: boolean | undefined }) {
+  const rows = (["stage", "exhibitor"] as Role[])
+    .map((r) => ({ r, ppl: e.team.filter((t) => t.role === r) }))
+    .filter((x) => x.ppl.length);
+  if (!rows.length) return null;
+  return (
+    <div className="space-y-1">
+      {rows.map(({ r, ppl }) => (
+        <div key={r} className="flex flex-wrap items-center gap-1">
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ${compact ? "w-full" : "mr-0.5"}`}
+          >
+            {ROLE_SHORT[r]}
+          </span>
+          {ppl.map((t) => (
+            <span key={t.name} className={r === "stage" ? "team-chip" : "team-chip-alt"}>
+              {t.name}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Collapsed event: title, customer, status, team. Click opens the detail sheet. */
+function EventPill({
+  e,
+  day,
+  total,
+  onOpen,
+  compact,
+}: {
+  e: CalEvent;
+  day: number;
+  total: number;
+  onOpen: (e: CalEvent) => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(e)}
+      className={`block w-full space-y-1.5 rounded-md border border-border/70 border-l-4 bg-card text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${STATUS_BAR[e.status]} ${compact ? "p-2" : "p-3"}`}
+    >
+      <div
+        className={`font-semibold leading-snug text-card-foreground ${compact ? "line-clamp-2 text-[13px]" : ""}`}
+      >
+        {e.title || "Event"}
+      </div>
+      {e.customer && (
+        <div className={`truncate text-muted-foreground ${compact ? "text-xs" : "text-sm"}`}>
+          {e.customer}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        <StatusChip status={e.status} />
+        {total > 1 && (
+          <span className="day-chip">
+            {day}/{total}
+          </span>
+        )}
+        {!compact && (
+          <span className={e.type === "pay" ? "type-chip-pay" : "type-chip-sponsor"}>
+            {TYPE_LABEL[e.type]}
+          </span>
+        )}
+        {!compact && e.type === "pay" && e.value != null && (
+          <span className="text-xs font-semibold">{baht(e.value)}</span>
+        )}
+      </div>
+      {!compact && e.location && (
+        <div className="flex items-start gap-1 text-sm text-muted-foreground">
+          <MapPin size={14} className="mt-0.5 shrink-0" />
+          <span className="truncate">{e.location}</span>
+        </div>
+      )}
+      <TeamLine e={e} compact={compact} />
+    </button>
+  );
+}
+
+/** Side panel on desktop, bottom sheet on mobile. */
+function EventSheet({
+  e,
+  readOnly,
+  onClose,
+  onEdit,
+}: {
+  e: CalEvent;
+  readOnly?: boolean | undefined;
+  onClose: () => void;
+  onEdit: (e: CalEvent) => void;
+}) {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-foreground/30 md:items-stretch md:justify-end"
+      onClick={onClose}
+    >
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={e.title || "Event"}
+        onClick={(ev) => ev.stopPropagation()}
+        className="max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl md:max-h-none md:w-[440px] md:rounded-none md:p-6"
+      >
+        <div className="mb-4 flex items-start gap-3">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <h3 className="font-display text-2xl leading-tight">{e.title || "Event"}</h3>
+            {e.customer && <div className="text-sm text-foreground/80">{e.customer}</div>}
+            <div className="flex flex-wrap items-center gap-1">
+              <StatusChip status={e.status} />
+              <span className={e.type === "pay" ? "type-chip-pay" : "type-chip-sponsor"}>
+                {TYPE_LABEL[e.type]}
+              </span>
+              {e.type === "pay" && e.value != null && (
+                <span className="text-sm font-semibold">{baht(e.value)}</span>
+              )}
+            </div>
+            {e.location && (
+              <div className="flex items-start gap-1 text-sm text-muted-foreground">
+                <MapPin size={14} className="mt-0.5 shrink-0" />
+                {e.location}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="cal-nav shrink-0" aria-label="ปิด">
+            <X size={18} />
+          </button>
+        </div>
+        <EventDetails e={e} readOnly={readOnly} onEdit={onEdit} />
+      </aside>
+    </div>
+  );
+}
+
+/** Table of events; click a row to open its details. */
 function EventTable({
   rows,
   allMonths,
-  readOnly,
-  onEdit,
+  onOpen,
 }: {
   rows: CalEvent[];
   allMonths: boolean;
-  readOnly?: boolean | undefined;
-  onEdit?: ((e: CalEvent) => void) | undefined;
+  onOpen: (e: CalEvent) => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
   const shortDate = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("th-TH", {
       day: "numeric",
       month: "short",
       year: "2-digit",
     });
+  const teamOf = (e: CalEvent, r: Role) =>
+    e.team
+      .filter((t) => t.role === r)
+      .map((t) => t.name)
+      .join(", ");
   return (
     <div className="space-y-2">
       {allMonths && (
@@ -407,14 +507,14 @@ function EventTable({
         </p>
       )}
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-secondary/60 text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-medium">วันที่</th>
               <th className="px-3 py-2 font-medium">ชื่องาน</th>
               <th className="px-3 py-2 font-medium">ลูกค้า</th>
               <th className="px-3 py-2 font-medium">สถานะ</th>
-              <th className="px-3 py-2 font-medium">ประเภท</th>
+              <th className="px-3 py-2 font-medium">ทีม</th>
               <th className="px-3 py-2 text-right font-medium">Value</th>
               <th className="px-3 py-2 font-medium">QT / BL</th>
               <th className="px-3 py-2 font-medium">ผู้ติดต่อ</th>
@@ -429,69 +529,71 @@ function EventTable({
               </tr>
             )}
             {rows.map((e) => {
-              const open = openId === e.id;
               const c = e.contact;
+              const live = teamOf(e, "stage");
+              const booth = teamOf(e, "exhibitor");
               return (
-                <Fragment key={e.id}>
-                  <tr
-                    onClick={() => setOpenId(open ? null : e.id)}
-                    className={`cursor-pointer border-t border-border align-top hover:bg-secondary/40 ${open ? "bg-secondary/40" : ""}`}
-                    aria-expanded={open}
-                  >
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      {shortDate(e.date)}
-                      {e.endDate && e.endDate > e.date && (
-                        <div className="text-xs text-muted-foreground">
-                          ถึง {shortDate(e.endDate)}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 font-medium">
-                      <span className="inline-flex items-center gap-1">
-                        <ChevronDown
-                          size={14}
-                          className={`shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-                        />
-                        {e.title || "Event"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {e.customer || <span className="text-muted-foreground">–</span>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusChip status={e.status} />
-                    </td>
-                    <td className="px-3 py-2.5">
+                <tr
+                  key={e.id}
+                  onClick={() => onOpen(e)}
+                  onKeyDown={(ev) =>
+                    (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onOpen(e))
+                  }
+                  tabIndex={0}
+                  className="cursor-pointer border-t border-border align-top hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none"
+                >
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    {shortDate(e.date)}
+                    {e.endDate && e.endDate > e.date && (
+                      <div className="text-xs text-muted-foreground">
+                        ถึง {shortDate(e.endDate)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 font-medium">
+                    {e.title || "Event"}
+                    <div className="mt-0.5">
                       <span className={e.type === "pay" ? "type-chip-pay" : "type-chip-sponsor"}>
                         {TYPE_LABEL[e.type]}
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
-                      {e.type === "pay" && e.value != null ? (
-                        baht(e.value)
-                      ) : (
-                        <span className="text-muted-foreground">–</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {e.qt && <div>QT: {e.qt}</div>}
-                      {e.bl && <div>BL: {e.bl}</div>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs">
-                      {c.name && <div>{c.name}</div>}
-                      {c.phone && <div className="text-muted-foreground">{c.phone}</div>}
-                    </td>
-                  </tr>
-                  {open && (
-                    <tr className="bg-secondary/20">
-                      <td colSpan={8} className="px-4 py-3">
-                        <div className="max-w-xl">
-                          <EventDetails e={e} readOnly={readOnly} onEdit={onEdit} />
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {e.customer || <span className="text-muted-foreground">–</span>}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <StatusChip status={e.status} />
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    {live && (
+                      <div>
+                        <span className="text-muted-foreground">{ROLE_SHORT.stage}: </span>
+                        {live}
+                      </div>
+                    )}
+                    {booth && (
+                      <div>
+                        <span className="text-muted-foreground">{ROLE_SHORT.exhibitor}: </span>
+                        {booth}
+                      </div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                    {e.type === "pay" && e.value != null ? (
+                      baht(e.value)
+                    ) : (
+                      <span className="text-muted-foreground">–</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                    {e.qt && <div>QT: {e.qt}</div>}
+                    {e.bl && <div>BL: {e.bl}</div>}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    {c.name && <div>{c.name}</div>}
+                    {c.phone && <div className="text-muted-foreground">{c.phone}</div>}
+                  </td>
+                </tr>
               );
             })}
           </tbody>
@@ -514,7 +616,7 @@ function EventTable({
   );
 }
 
-/** Expanded content shared by card and table: details, team, contact, actions. */
+/** Full details: date, QT/BL, notes, team, contact, actions. */
 function EventDetails({
   e,
   readOnly,

@@ -1,6 +1,7 @@
 export type Role = "stage" | "exhibitor";
 export type TeamMember = { name: string; role: Role };
 export const ROLE_LABEL: Record<Role, string> = { stage: "Stage · Live translation", exhibitor: "Exhibitor · ออกบูธ" };
+export const ROLE_SHORT: Record<Role, string> = { stage: "Live", exhibitor: "Exhibitor" };
 
 export type EventType = "pay" | "sponsor";
 export const TYPE_LABEL: Record<EventType, string> = { pay: "Pay", sponsor: "Sponsor" };
