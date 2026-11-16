@@ -7,6 +7,7 @@ import {
   FileText,
   Link2,
   Mail,
+  MoreHorizontal,
   MapPin,
   MessageCircle,
   Pencil,
@@ -15,6 +16,7 @@ import {
   Search,
   Send,
   Table2,
+  Trash2,
   User,
   Users,
   Wallet,
@@ -48,6 +50,22 @@ import {
   weekSegments,
   ymd,
 } from "@/lib/events";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /** Left accent colour per status, so the pipeline stage reads at a glance. */
 const STATUS_BAR: Record<Status, string> = {
@@ -94,11 +112,13 @@ export function Calendar({
   readOnly,
   onAdd,
   onEdit,
+  onDelete,
 }: {
   events: CalEvent[];
   readOnly?: boolean;
   onAdd?: (date: string) => void;
   onEdit?: (e: CalEvent) => void;
+  onDelete?: (e: CalEvent) => void;
 }) {
   const now = new Date();
   const [cur, setCur] = useState({ y: now.getFullYear(), m: now.getMonth() });
@@ -236,7 +256,14 @@ export function Calendar({
       </div>
 
       {view === "table" && (
-        <EventTable rows={tableRows} allMonths={!!query.trim()} onOpen={openEvent} />
+        <EventTable
+          rows={tableRows}
+          allMonths={!!query.trim()}
+          onOpen={openEvent}
+          actions={
+            readOnly ? undefined : { onEdit: (e) => onEdit?.(e), onDelete: (e) => onDelete?.(e) }
+          }
+        />
       )}
 
       {view === "calendar" && (
@@ -758,11 +785,16 @@ function EventTable({
   rows,
   allMonths,
   onOpen,
+  actions,
 }: {
   rows: CalEvent[];
   allMonths: boolean;
   onOpen: (e: CalEvent) => void;
+  /** Row menu (⋯) with edit / delete; omitted in read-only view. */
+  actions?: { onEdit: (e: CalEvent) => void; onDelete: (e: CalEvent) => void } | undefined;
 }) {
+  const [deleting, setDeleting] = useState<CalEvent | null>(null);
+  const cols = actions ? 9 : 8;
   const shortDate = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("en-GB", {
       day: "numeric",
@@ -793,12 +825,17 @@ function EventTable({
               <th className="px-3 py-2 text-right font-medium">Value</th>
               <th className="px-3 py-2 font-medium">QT / BL</th>
               <th className="px-3 py-2 font-medium">ผู้ติดต่อ</th>
+              {actions && (
+                <th className="w-12 px-2 py-2">
+                  <span className="sr-only">ตัวเลือก</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={cols} className="px-3 py-8 text-center text-muted-foreground">
                   ไม่มี event
                 </td>
               </tr>
@@ -812,7 +849,9 @@ function EventTable({
                   key={e.id}
                   onClick={() => onOpen(e)}
                   onKeyDown={(ev) =>
-                    (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onOpen(e))
+                    ev.target === ev.currentTarget &&
+                    (ev.key === "Enter" || ev.key === " ") &&
+                    (ev.preventDefault(), onOpen(e))
                   }
                   tabIndex={0}
                   className={`cursor-pointer border-t border-border align-top hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none ${isActive(e) ? "" : "opacity-50"}`}
@@ -873,6 +912,34 @@ function EventTable({
                     {c.name && <div>{c.name}</div>}
                     {c.phone && <div className="text-muted-foreground">{c.phone}</div>}
                   </td>
+                  {actions && (
+                    <td className="px-2 py-2" onClick={(ev) => ev.stopPropagation()}>
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                            aria-label={`ตัวเลือกสำหรับ ${e.title || "Event"}`}
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onSelect={() => actions.onEdit(e)}>
+                            <Pencil size={14} />
+                            แก้ไข
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => setDeleting(e)}
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                          >
+                            <Trash2 size={14} />
+                            ลบ
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -892,12 +959,35 @@ function EventTable({
                     ),
                   )}
                 </td>
-                <td colSpan={2} />
+                <td colSpan={actions ? 3 : 2} />
               </tr>
             </tfoot>
           )}
         </table>
       </div>
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ลบ event นี้?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleting?.title || "Event"}”{deleting ? ` · ${dateRange(deleting)}` : ""}{" "}
+              จะถูกลบออกจากปฏิทิน และกู้คืนไม่ได้
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleting) actions?.onDelete(deleting);
+                setDeleting(null);
+              }}
+            >
+              ลบ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

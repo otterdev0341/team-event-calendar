@@ -58,7 +58,7 @@ function Index() {
         </div>
         <button onClick={share} className="btn-primary"><Share2 size={16} />{copied ? "คัดลอกลิงก์แล้ว!" : "แชร์แบบอ่านอย่างเดียว"}</button>
       </header>
-      <Calendar events={events} onAdd={(d) => open(blank(d))} onEdit={open} />
+      <Calendar events={events} onAdd={(d) => open(blank(d))} onEdit={open} onDelete={(e) => setEvents((p) => p.filter((x) => x.id !== e.id))} />
       <p className="mt-6 text-xs text-muted-foreground">ข้อมูลบันทึกไว้ในเบราว์เซอร์นี้ · ลิงก์แชร์เป็นภาพ ณ ตอนที่กดแชร์ (แก้ไขแล้วต้องแชร์ใหม่) · <Link to="/view" className="underline">ดูหน้าอ่านอย่างเดียว</Link></p>
 
       {editing && (
