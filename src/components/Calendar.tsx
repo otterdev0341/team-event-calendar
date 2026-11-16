@@ -501,7 +501,9 @@ const STATUS_TINT: Record<Status, string> = {
 };
 
 /**
- * A multi-day event as one slim bar across its days in a week row (Zoho/Google style).
+ * A multi-day event as a bar across its days in a week row (Zoho/Google style).
+ * Line 1: title, customer, status, value. Line 2: dates, place, team — shown in
+ * full when the bar is wide and trimmed when it is short (container queries).
  * A segment continuing from the previous week starts with ‹ and the start date.
  */
 function SpanBar({
@@ -516,22 +518,14 @@ function SpanBar({
   const { e, contLeft, contRight } = sg;
   const short = (d: string) =>
     new Date(d + "T00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-  const names = (r: Role) =>
-    e.team
-      .filter((t) => t.role === r)
-      .map((t) => t.name)
-      .join(", ");
-  const live = names("stage");
-  const booth = names("exhibitor");
-  const team = [live && `${ROLE_SHORT.stage} ${live}`, booth && `${ROLE_SHORT.exhibitor} ${booth}`]
-    .filter(Boolean)
-    .join(" · ");
+  const live = e.team.filter((t) => t.role === "stage");
+  const booth = e.team.filter((t) => t.role === "exhibitor");
   const tip = [
     e.title || "Event",
     e.customer,
     `${dateRange(e)} · ${STATUS_LABEL[e.status]}`,
     e.type === "pay" && e.value != null ? baht(e.value) : TYPE_LABEL[e.type],
-    team,
+    e.location,
   ]
     .filter(Boolean)
     .join("\n");
@@ -542,36 +536,79 @@ function SpanBar({
       style={style}
       title={tip}
       className={[
-        "relative z-[1] flex h-7 min-w-0 items-center gap-1.5 px-2 text-left text-[13px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+        "@container relative z-[1] min-w-0 space-y-1 px-2 py-1.5 text-left text-[13px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
         STATUS_TINT[e.status],
         contLeft ? "-ml-px rounded-l-none" : `ml-1.5 rounded-l border-l-4 ${STATUS_BAR[e.status]}`,
         contRight ? "-mr-px rounded-r-none" : "mr-1.5 rounded-r",
         isActive(e) ? "" : "opacity-60",
       ].join(" ")}
     >
-      {contLeft && (
-        <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
-          <ChevronLeft size={13} />
-          {short(e.date)}
+      {/* Line 1 */}
+      <div className="flex min-w-0 items-center gap-1.5">
+        {contLeft && (
+          <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
+            <ChevronLeft size={13} />
+            {short(e.date)}
+          </span>
+        )}
+        <span
+          className={`min-w-[3rem] shrink truncate font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
+        >
+          {e.title || "Event"}
         </span>
-      )}
-      <span
-        className={`min-w-[3rem] shrink truncate font-semibold text-card-foreground ${isActive(e) ? "" : "line-through"}`}
-      >
-        {e.title || "Event"}
-      </span>
-      {e.customer && (
-        <span className="min-w-0 shrink-[4] truncate text-xs text-muted-foreground">
-          {e.customer}
+        {e.customer && (
+          <span className="min-w-0 shrink-[4] truncate text-xs text-muted-foreground">
+            · {e.customer}
+          </span>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <span className="hidden @[15rem]:inline [&>span]:bg-white/80">
+            <StatusChip status={e.status} />
+          </span>
+          <ValueBadge e={e} />
+          {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
         </span>
-      )}
-      {team && (
-        <span className="min-w-0 shrink-[3] truncate text-xs text-foreground/70">{team}</span>
-      )}
-      <span className="ml-auto flex shrink-0 items-center gap-1">
-        <ValueBadge e={e} />
-        {contRight && <ChevronRight size={13} className="text-muted-foreground" />}
-      </span>
+      </div>
+      {/* Line 2 */}
+      <div className="flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground">
+        <span className="hidden shrink-0 items-center gap-1 @[15rem]:flex">
+          <CalendarDays size={12} />
+          {short(e.date)} – {short(e.endDate!)}
+        </span>
+        {e.location && (
+          <span className="hidden min-w-0 shrink-[3] items-center gap-1 @[19rem]:flex">
+            <MapPin size={12} className="shrink-0" />
+            <span className="truncate">{e.location}</span>
+          </span>
+        )}
+        {live.length > 0 && (
+          <span className="flex min-w-0 shrink items-center gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide">
+              {ROLE_SHORT.stage}
+            </span>
+            {live.map((t) => (
+              <span key={t.name} className="team-chip whitespace-nowrap">
+                {t.name}
+              </span>
+            ))}
+          </span>
+        )}
+        {booth.length > 0 && (
+          <span className="flex min-w-0 shrink items-center gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide">
+              {ROLE_SHORT.exhibitor}
+            </span>
+            {booth.map((t) => (
+              <span key={t.name} className="team-chip-alt whitespace-nowrap">
+                {t.name}
+              </span>
+            ))}
+          </span>
+        )}
+        {!live.length && !booth.length && (
+          <span className="italic @[15rem]:hidden">ยังไม่มีทีม</span>
+        )}
+      </div>
     </button>
   );
 }
